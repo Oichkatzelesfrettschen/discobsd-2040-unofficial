@@ -721,16 +721,21 @@ void
 addupc(caddr_t pc, struct uprof *pbuf, int ticks)
 {
 	u_int indx;
+	u_short *counter;
 
 	if (pc < (caddr_t)pbuf->pr_off)
 		return;
 
 	indx = pc - (caddr_t)pbuf->pr_off;
 	indx = (indx * pbuf->pr_scale) >> 16;
-	if (indx >= pbuf->pr_size)
+	indx &= ~1U;
+	if (indx > pbuf->pr_size || pbuf->pr_size - indx < sizeof(*counter))
+		return;
+	counter = (u_short *)((caddr_t)pbuf->pr_base + indx);
+	if (baduaddr_span((caddr_t)counter, sizeof(*counter)))
 		return;
 
-	pbuf->pr_base[indx] += ticks;
+	*counter += ticks;
 }
 
 /*

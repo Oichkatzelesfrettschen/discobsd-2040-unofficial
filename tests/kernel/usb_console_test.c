@@ -51,6 +51,7 @@ void usb_host_settle(void);
 #include USB_CONSOLE_DRIVER
 
 #include <sys/clist.h>
+#include <sys/fcntl.h>
 #include <sys/uio.h>
 #include <sys/proc.h>
 #include <sys/kernel.h>
@@ -66,6 +67,7 @@ long tk_nin;
 long tk_nout;
 int selwait;
 static struct proc hk_proc;
+struct proc proc[NPROC];
 
 _Alignas(CBLOCK) struct cblock cfree[NCLIST];
 
@@ -1291,6 +1293,50 @@ run_polled_read(void)
 	check_polled_read("halt wait with the tty open", 1);
 }
 
+static void
+check_tty_pgrp_authorization(void)
+{
+	struct tty tp;
+	int group = 77;
+	int error;
+
+	bzero(&tp, sizeof(tp));
+	bzero(proc, sizeof(proc));
+	u.u_procp = &hk_proc;
+	u.u_ttyp = NULL;
+	u.u_uid = 100;
+	hk_proc.p_pgrp = 10;
+	proc[1].p_stat = SRUN;
+	proc[1].p_pid = 88;
+	proc[1].p_pgrp = group;
+	proc[1].p_uid = 200;
+	error = ttioctl(&tp, TIOCSPGRP, (caddr_t)&group, FREAD);
+	hk_checks++;
+	if (error != EPERM || tp.t_pgrp != 0) {
+		hk_failures++;
+		hk_note("FAIL leaderless process group authorization");
+	} else
+		hk_note("PASS leaderless process group authorization");
+
+	proc[1].p_uid = u.u_uid;
+	error = ttioctl(&tp, TIOCSPGRP, (caddr_t)&group, FREAD);
+	hk_checks++;
+	if (error != 0 || tp.t_pgrp != group) {
+		hk_failures++;
+		hk_note("FAIL owned process group authorization");
+	} else
+		hk_note("PASS owned process group authorization");
+
+	group = 78;
+	error = ttioctl(&tp, TIOCSPGRP, (caddr_t)&group, FREAD);
+	hk_checks++;
+	if (error != EPERM || tp.t_pgrp != 77) {
+		hk_failures++;
+		hk_note("FAIL empty process group rejection");
+	} else
+		hk_note("PASS empty process group rejection");
+}
+
 static int
 run_fixed(void)
 {
@@ -1315,6 +1361,7 @@ run_fixed(void)
 	check_reset_unconfigured();
 	check_boot_replay();
 	check_boot_replay_reconfigured();
+	check_tty_pgrp_authorization();
 
 	/* A warm reboot leaves the controller out of reset. */
 	model_resets_held = 0;

@@ -10,15 +10,34 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
-    parser.add_argument("--mutant", action="store_true")
+    parser.add_argument("--mutant", choices=("type-result", "span-check"))
     args = parser.parse_args()
     function = extract_function(args.source.read_text(), "void\nreadlink(void)", "readlink")
-    if args.mutant:
-        before = "u.u_error = EINVAL;\n        goto out;"
-        after = "u.u_error = EINVAL;\n        u.u_rval = uap->count;\n        goto out;"
+    if args.mutant == "type-result":
+        before = """    if ((ip->i_mode&IFMT) != IFLNK) {
+        u.u_error = EINVAL;
+        goto out;
+    }
+"""
+        after = """    if ((ip->i_mode&IFMT) != IFLNK) {
+        u.u_error = EINVAL;
+        u.u_rval = uap->count;
+        goto out;
+    }
+"""
         if function.count(before) != 1:
             raise SystemExit("readlink invalid-type mutation anchor is not unique")
         function = function.replace(before, after, 1)
+    elif args.mutant == "span-check":
+        before = """    if (uap->count != 0 &&
+        baduaddr_span((caddr_t)uap->buf, (u_int)uap->count)) {
+        u.u_error = EFAULT;
+        goto out;
+    }
+"""
+        if function.count(before) != 1:
+            raise SystemExit("readlink span mutation anchor is not unique")
+        function = function.replace(before, "", 1)
     args.output.write_text(INCLUDES + "\n" + function + "\n")
 
 

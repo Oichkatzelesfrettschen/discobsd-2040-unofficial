@@ -82,6 +82,13 @@ extract(char **argv)
 	/* Read from an archive, write to disk; pad on read. */
 	SETCF(afd, archive, 0, NULL, RPAD);
 	for (all = !*argv; get_arobj(afd);) {
+		if (chdr.name[0] == '\0' || strchr(chdr.name, '/') != NULL ||
+		    strcmp(chdr.name, ".") == 0 || strcmp(chdr.name, "..") == 0) {
+			(void)fprintf(stderr, "ar: unsafe member name %s.\n",
+			    chdr.name);
+			skip_arobj(afd);
+			continue;
+		}
 		if (all)
 			file = chdr.name;
 		else if (!(file = files(argv))) {
@@ -93,7 +100,8 @@ extract(char **argv)
 		    stored_date(sb.st_mtime) > chdr.date)
 			continue;
 
-		if ((tfd = open(file, O_WRONLY|O_CREAT|O_TRUNC, 0200)) < 0) {
+		if ((tfd = open(file, O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,
+		    0200)) < 0) {
 			(void)fprintf(stderr, "ar: %s: %s.\n",
 			    file, strerror(errno));
 			skip_arobj(afd);
@@ -107,7 +115,7 @@ extract(char **argv)
 		cf.wname = file;
 		copy_ar(&cf, chdr.size, chdr.lname);
 
-		if (fchmod(tfd, (short)chdr.mode)) {
+		if (fchmod(tfd, (short)chdr.mode & 0777)) {
 			(void)fprintf(stderr, "ar: %s: chmod: %s\n",
 			    file, strerror(errno));
 		}

@@ -206,6 +206,12 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
     }
 
     if (type == IFCHR) {
+        if (uio->uio_rw == UIO_WRITE && securelevel > 0) {
+            dev_t blockdev = chrtoblk(dev);
+
+            if (blockdev != NODEV && blkoverlap(swapdev, blockdev))
+                return (EPERM);
+        }
         if (uio->uio_rw == UIO_READ) {
             if (! (INODE_FILESYSTEM(ip)->fs_flags & MNT_NOATIME))
                 ip->i_flag |= IACC;

@@ -183,6 +183,11 @@ ialloc(struct inode *pip __unused)
     char    *emsg = "no inodes free";
 
     fs = INODE_FILESYSTEM(pip);
+    if (fs->fs_ninode < 0 || fs->fs_ninode > NICINOD) {
+        fs->fs_ninode = 0;
+        u.u_error = EIO;
+        return(NULL);
+    }
     /* The new inode takes the caller's user ID, which the format must hold. */
     if (FS_WIDE16(fs, u.u_uid)) {
         u.u_error = EOVERFLOW;

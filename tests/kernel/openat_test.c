@@ -729,6 +729,15 @@ baduaddr(caddr_t address)
 }
 
 int
+baduaddr_span(caddr_t address, u_int length)
+{
+    (void)address;
+    (void)length;
+    HK_CHECK(0);
+    return 1;
+}
+
+int
 copyout(const caddr_t source, caddr_t destination, u_int length)
 {
     (void)source;

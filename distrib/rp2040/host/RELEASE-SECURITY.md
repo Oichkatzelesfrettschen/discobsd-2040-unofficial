@@ -71,8 +71,8 @@ This is authenticated release distribution and verified flashing, not secure
 boot. No public key burned into mutable flash changes that limitation.
 
 The convenience console and both user services bind loopback by default.
-`gizmobsd-console up --bind 0.0.0.0` explicitly opts into LAN exposure,
-including the token-revealing short link. Prefer SSH forwarding with
+`gizmobsd-console up --bind 0.0.0.0` explicitly exposes both endpoints to
+the LAN. Both require the token and carry it over HTTP. Prefer SSH forwarding with
 mlkem768x25519-sha256 inside an independently provisioned WireGuard tunnel
 with a unique random 256-bit PresharedKey. Network deployment and key
 distribution are administrative actions not performed by this package.

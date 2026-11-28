@@ -66,22 +66,29 @@ sendsig(sig_t p, int sig, long mask)
 	struct userframe *uf = USERFRAME(regs);
 	struct sigframe *sfp;
 	int oonstack;
+	int use_altstack;
 
 	oonstack = u.u_sigstk.ss_flags & SA_ONSTACK;
 
 	/*
 	 * Allocate and validate space for the signal frame.
 	 */
-	if ((u.u_psflags & SAS_ALTSTACK) &&
+	use_altstack = (u.u_psflags & SAS_ALTSTACK) &&
 	    !(u.u_sigstk.ss_flags & SA_ONSTACK) &&
-	    (u.u_sigonstack & sigmask(sig))) {
+	    (u.u_sigonstack & sigmask(sig));
+	if (use_altstack) {
 		sfp = (struct sigframe *)(((u_int)u.u_sigstk.ss_base +
 		    u.u_sigstk.ss_size) & ~7U);
-		u.u_sigstk.ss_flags |= SA_ONSTACK;
 	} else
 		sfp = (struct sigframe *)(regs->tf_sp & ~7U);
 
 	sfp--;
+	if (baduaddr_span((caddr_t)sfp, sizeof(*sfp))) {
+		fatalsig(SIGILL);
+		return;
+	}
+	if (use_altstack)
+		u.u_sigstk.ss_flags |= SA_ONSTACK;
 	if (!(u.u_sigstk.ss_flags & SA_ONSTACK)) {
 		if ((caddr_t)sfp < (caddr_t)u.u_procp->p_daddr + u.u_dsize) {
 			/*

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -21,6 +22,7 @@
 FILE    *is, *os;
 char    *dirtry[] = {_PATH_USRTMP, _PATH_TMP, NULL};
 char    **dirs;
+char    *tempdir;
 char    *file;
 char    *filep;
 int nfiles;
@@ -109,6 +111,7 @@ char **argv;
     char *arg;
     struct field *p, *q;
     int i;
+    unsigned attempt;
     size_t file_capacity;
 
     copyproto();
@@ -186,28 +189,40 @@ char **argv;
     tspace = (char *)((char **)lspace + nlines);
     a = -1;
     for(dirs=dirtry; *dirs; dirs++) {
-        file_capacity = strlen(*dirs) + 26;
-        file = malloc(file_capacity);
-        if(file == NULL) {
+        file_capacity = strlen(*dirs) + 32;
+        tempdir = malloc(file_capacity);
+        if(tempdir == NULL) {
             diag("can't allocate temp name", "");
             exit(1);
         }
-        sprintf(file, "%s/stm%05u.", *dirs, (unsigned)getpid());
-        filep = file;
-        while (*filep)
-            filep++;
-        strcpy(filep, "probe");
-        if ( (a=creat(file, 0600)) >=0)
+        for(attempt = 0; attempt < 10; attempt++) {
+            sprintf(tempdir, "%s/stm%05u.%u", *dirs,
+                (unsigned)getpid(), attempt);
+            if(mkdir(tempdir, 0700) == 0) {
+                a = 0;
+                break;
+            }
+            if(errno != EEXIST)
+                break;
+        }
+        if(a == 0)
             break;
-        free(file);
-        file = NULL;
+        free(tempdir);
+        tempdir = NULL;
     }
     if(a < 0) {
         diag("can't locate temp","");
         exit(1);
     }
-    close(a);
-    unlink(file);
+    file_capacity = strlen(tempdir) + 16;
+    file = malloc(file_capacity);
+    if(file == NULL) {
+        rmdir(tempdir);
+        diag("can't allocate temp name", "");
+        exit(1);
+    }
+    sprintf(file, "%s/stm.", tempdir);
+    filep = file + strlen(file);
     if (signal(SIGHUP, SIG_IGN) != SIG_IGN)
         signal(SIGHUP, term);
     if (signal(SIGINT, SIG_IGN) != SIG_IGN)
@@ -516,6 +531,7 @@ int sig;
     for(i=eargc; i<=nfiles; i++) {  /*<= in case of interrupt*/
         unlink(setfil(i));  /*with nfiles not updated*/
     }
+    rmdir(tempdir);
     _exit(error);
 }
 

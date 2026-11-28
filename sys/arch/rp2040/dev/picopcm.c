@@ -60,7 +60,7 @@
  * from the handler.
  *
  * The handler does not call wakeup(). A writer that finds the ring full
- * arms a callout and sleeps PCM_NAP_TICKS; if the ring is still full after
+ * enters a timed sleep for PCM_NAP_TICKS; if the ring is still full after
  * PCM_STALL_NAPS naps the sample clock is not running and the write fails
  * with EIO instead of sleeping forever.
  */
@@ -145,18 +145,11 @@ PWM_IRQ_WRAP_Handler(void)
 	PC_REG32(PWM_SLICE(PCM_SLICE) + PWM_CC) = level | level << 16;
 }
 
-static void
-pcm_wake(caddr_t arg)
-{
-	wakeup(arg);
-}
-
-/* Sleep PCM_NAP_TICKS, not interruptibly: the wait is bounded. */
+/* Sleep PCM_NAP_TICKS atomically, not interruptibly: the wait is bounded. */
 static void
 pcm_nap(void)
 {
-	timeout(pcm_wake, (caddr_t)&pcm, PCM_NAP_TICKS);
-	sleep((caddr_t)&pcm, PRIBIO);
+	(void)tsleep((caddr_t)&pcm, PRIBIO, PCM_NAP_TICKS);
 }
 
 /* Linearly sweep duty across [from..to] at PCM_RATE and wait for drain. */

@@ -16,8 +16,17 @@ static int lookup_missing;
 static int io_error;
 static unsigned io_calls;
 static unsigned release_calls;
+static int invalid_user_span;
 
 void kernel_readlink(void);
+
+int
+baduaddr_span(caddr_t address, u_int length)
+{
+    (void)address;
+    (void)length;
+    return invalid_user_span;
+}
 
 struct inode *
 readlink_namei(struct nameidata *name)
@@ -70,6 +79,7 @@ run_case(int mode, int missing, int failure)
     lookup_missing = missing;
     io_error = failure;
     io_calls = release_calls = 0;
+    invalid_user_span = 0;
     kernel_readlink();
     if (missing) {
         HK_CHECK(u.u_error == ENOENT);
@@ -89,6 +99,31 @@ run_case(int mode, int missing, int failure)
     }
 }
 
+static void
+run_rejected_case(int count, int span_invalid, int error)
+{
+    struct args { char *name; char *buffer; int count; };
+    char name[] = "entry";
+    char buffer[8];
+    struct args *arguments;
+
+    u = (struct user){0};
+    arguments = (struct args *)u.u_arg;
+    arguments->name = name;
+    arguments->buffer = buffer;
+    arguments->count = count;
+    u.u_rval = 123;
+    selected_inode.i_mode = IFLNK;
+    lookup_missing = io_error = 0;
+    invalid_user_span = span_invalid;
+    io_calls = release_calls = 0;
+    kernel_readlink();
+    HK_CHECK(u.u_error == error);
+    HK_CHECK(u.u_rval == 123);
+    HK_CHECK(release_calls == 1);
+    HK_CHECK(io_calls == 0);
+}
+
 int
 main(void)
 {
@@ -96,5 +131,7 @@ main(void)
     run_case(IFREG, 0, 0);
     run_case(IFLNK, 0, 0);
     run_case(IFLNK, 0, EIO);
+    run_rejected_case(-1, 0, EINVAL);
+    run_rejected_case(8, 1, EFAULT);
     return hk_verdict("readlink error and residual");
 }

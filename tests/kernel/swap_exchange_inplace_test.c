@@ -102,6 +102,17 @@ same_bytes(const unsigned char *first, const unsigned char *second,
     return 1;
 }
 
+static int
+zero_bytes(const unsigned char *bytes, size_t length)
+{
+    size_t index;
+
+    for (index = 0; index < length; index++)
+        if (bytes[index] != 0)
+            return 0;
+    return 1;
+}
+
 static size_t
 image_span(size_t data_length, size_t stack_length)
 {
@@ -195,6 +206,7 @@ reset_case(size_t outgoing_data, size_t outgoing_stack,
 {
     size_t incoming_span = image_span(incoming_data - incoming_text,
         incoming_stack);
+    size_t index;
 
     bzero(&u, sizeof(u));
     bzero(&u0, USIZE);
@@ -246,6 +258,9 @@ reset_case(size_t outgoing_data, size_t outgoing_stack,
     bzero(&panic_incoming, sizeof(panic_incoming));
     install_resident(&panic_outgoing, expected_out_data, outgoing_data,
         expected_out_stack, outgoing_stack, expected_out_u, outgoing_text);
+    for (index = outgoing_data;
+        index < USER_TOP_BYTES - outgoing_stack; index++)
+        __user_data_start[index] = 0xa5;
     install_swapped(&panic_incoming, image_base, incoming_data,
         incoming_stack, incoming_text);
     put_image(image_base, expected_in_data + incoming_text,
@@ -387,6 +402,8 @@ successful_case(size_t outgoing_data, size_t outgoing_stack,
         expected_in_data, incoming_data));
     HK_CHECK(same_bytes((unsigned char *)__user_data_end - incoming_stack,
         expected_in_stack, incoming_stack));
+    HK_CHECK(zero_bytes((unsigned char *)__user_data_start + incoming_data,
+        USER_TOP_BYTES - incoming_data - incoming_stack));
     HK_CHECK(same_bytes((unsigned char *)&u0, expected_in_u, USIZE));
     HK_CHECK(image_matches(image_base, expected_out_data + outgoing_text,
         outgoing_data - outgoing_text, expected_out_stack, outgoing_stack,
@@ -403,6 +420,8 @@ successful_case(size_t outgoing_data, size_t outgoing_stack,
         expected_out_data, outgoing_data));
     HK_CHECK(same_bytes((unsigned char *)__user_data_end - outgoing_stack,
         expected_out_stack, outgoing_stack));
+    HK_CHECK(zero_bytes((unsigned char *)__user_data_start + outgoing_data,
+        USER_TOP_BYTES - outgoing_data - outgoing_stack));
     HK_CHECK(same_bytes((unsigned char *)&u0, expected_out_u, USIZE));
     HK_CHECK(image_matches(image_base, expected_in_data + incoming_text,
         incoming_data - incoming_text, expected_in_stack, incoming_stack,

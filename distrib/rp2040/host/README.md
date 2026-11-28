@@ -12,7 +12,7 @@ browser on the local network.
 | command | what it does |
 | --- | --- |
 | `gizmobsd-term` | attach the current terminal; reattaches across board reboots; Ctrl-] is the escape (`q` quits); `--probe` checks the board answers; `--list` prints attached boards; `--usb-port PORT` names one of several (Linux) |
-| `gizmobsd-web` | serve the console as a browser terminal on port 7681; `--usb-port PORT` names one of several boards (Linux); a non-loopback bind requires a token, from `GIZMOBSD_WEB_TOKEN`, a systemd credential named `web-token`, or the deprecated `--token` |
+| `gizmobsd-web` | serve the console as a browser terminal on port 7681; `--usb-port PORT` names one of several boards (Linux); every bind requires a token, from `GIZMOBSD_WEB_TOKEN`, a systemd credential named `web-token`, or the deprecated `--token` |
 | `gizmobsd-link` | redirect a short URL (port 42069) to the tokenized console URL, built from `--host` and the same token, or the deprecated `--to` |
 | `gizmobsd-console` | `up`, `down`, `status`: run web and link detached, or through the systemd user units when installed |
 | `gizmobsd-connect` | POSIX shell wrapper that launches tio, picocom, minicom, or cu on the board; `--usb-port PORT` names one of several boards by its USB port (Linux) |
@@ -117,8 +117,7 @@ Homebrew.
 The default binds loopback only. Reach it remotely through SSH forwarding
 or a trusted tunnel; [release and transport security](RELEASE-SECURITY.md)
 covers hybrid release verification and post-quantum transport
-recommendations. LAN access is an explicit opt-in that exposes the
-token-revealing short link:
+recommendations. LAN access is an explicit opt-in. Both endpoints require the token:
 
     gizmobsd-console up --bind 0.0.0.0
 
@@ -138,8 +137,8 @@ A web.env written before the loopback default keeps its LAN address and lacks a 
 link still redirects to that address. Run `gizmobsd-console up` (loopback) or
 `gizmobsd-console up --bind 0.0.0.0` once after upgrading to rewrite both.
 
-That command prints a short URL such as `http://10.0.0.5:42069/` that
-redirects to the tokenized console at `http://10.0.0.5:7681/?token=...`. The token and the
+That command prints a short URL such as `http://192.0.2.5:42069/?token=...` that
+redirects to the tokenized console at `http://192.0.2.5:7681/?token=...`. The token and the
 advertised address live in `web.env` under the per-user configuration
 directory (`~/.config/gizmobsd` on Linux, `~/Library/Application Support/
 gizmobsd` on macOS, `%APPDATA%\gizmobsd` on Windows), created with
@@ -160,8 +159,7 @@ its appearance before the link existed, so start the units once by hand:
 An install that enabled the units under `default.target` moves them to the
 device with `systemctl --user reenable gizmobsd-web gizmobsd-link`.
 
-Firewall: open ports 7681 and 42069 to the LAN only, never to the
-Internet, because the short link hands out the token. On a ufw host:
+Restrict ports 7681 and 42069 to trusted LAN clients. Both URLs carry the token over HTTP. On a ufw host:
 
     sudo ufw allow from 10.0.0.0/24 to any port 7681 proto tcp
     sudo ufw allow from 10.0.0.0/24 to any port 42069 proto tcp

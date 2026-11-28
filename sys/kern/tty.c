@@ -655,6 +655,7 @@ ttioctl(register struct tty *tp, u_int com, caddr_t data, int flag)
      */
     case TIOCSPGRP: {
         struct proc *p;
+        int found = 0;
         int pgrp = *(int *)data;
 
         if (!PGRP_VALID(pgrp))
@@ -662,9 +663,14 @@ ttioctl(register struct tty *tp, u_int com, caddr_t data, int flag)
 
         if (u.u_uid && (flag & FREAD) == 0)
             return (EPERM);
-        p = pfind(pgrp);
-        if (p && p->p_pgrp == pgrp &&
-            p->p_uid != u.u_uid && u.u_uid && !inferior(p))
+        for (p = proc; p < &proc[NPROC]; p++) {
+            if (p->p_stat == 0 || p->p_pgrp != pgrp)
+                continue;
+            found = 1;
+            if (p->p_uid != u.u_uid && u.u_uid && !inferior(p))
+                return (EPERM);
+        }
+        if (!found)
             return (EPERM);
         tp->t_pgrp = pgrp;
         break;

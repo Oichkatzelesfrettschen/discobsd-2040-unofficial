@@ -996,6 +996,15 @@ readlink(void)
         u.u_error = EINVAL;
         goto out;
     }
+    if (uap->count < 0) {
+        u.u_error = EINVAL;
+        goto out;
+    }
+    if (uap->count != 0 &&
+        baduaddr_span((caddr_t)uap->buf, (u_int)uap->count)) {
+        u.u_error = EFAULT;
+        goto out;
+    }
     u.u_error = rdwri (UIO_READ, ip, uap->buf, uap->count, (off_t) 0,
                 IO_UNIT, &resid);
     u.u_rval = uap->count - resid;

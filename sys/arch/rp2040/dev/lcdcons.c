@@ -928,11 +928,13 @@ lcd_ioctl_file(int flag)
  * compares the same way.
  */
 static int
-lcd_keyevs(int flag, int on)
+lcd_keyevs(struct tty *tp, int flag, int on)
 {
 	const struct file *fp = lcd_ioctl_file(flag);
 	int x, error;
 
+	if (tp != LCD_SHOWN)
+		return EACCES;
 	if (fp == NULL || on < 0 || on > 2)
 		return EINVAL;
 	x = spltty();
@@ -954,11 +956,13 @@ lcd_keyevs(int flag, int on)
  * does.
  */
 static int
-lcd_getkey(int flag, struct lcd_keyevs *out)
+lcd_getkey(struct tty *tp, int flag, struct lcd_keyevs *out)
 {
-	int x = spltty();
-	int error;
+	int x, error;
 
+	if (tp != LCD_SHOWN)
+		return EACCES;
+	x = spltty();
 	error = picokbd_evq_drain(out, u.u_procp, u.u_procp->p_pid,
 	    u.u_procp->p_pgrp, LCD_SHOWN->t_pgrp, LCD_SHOWN->t_flags,
 	    (flag & FREAD) != 0);
@@ -1028,9 +1032,9 @@ lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 	if (cmd == LCDIOC_SETGLYPH)
 		return lcd_setglyph((struct lcd_glyph *)addr);
 	if (cmd == LCDIOC_GETKEY)
-		return lcd_getkey(flag, (struct lcd_keyevs *)addr);
+		return lcd_getkey(lcd_tty(dev), flag, (struct lcd_keyevs *)addr);
 	if (cmd == LCDIOC_KEYEVS)
-		return lcd_keyevs(flag, *(int *)addr);
+		return lcd_keyevs(lcd_tty(dev), flag, *(int *)addr);
 	if (cmd == TIOCSETP || cmd == TIOCSETN || cmd == TIOCLBIS ||
 	    cmd == TIOCLBIC || cmd == TIOCLSET)
 		lcd_modeset();

@@ -38,7 +38,7 @@ setenvv(ename, eval, buf)
     /*
      * this assumes an environment variable "ename" already exists
      */
-    while (dp = *ep++) {
+    while ((dp = *ep++) != NULL) {
         for (cp = ename; *cp == *dp && *cp; cp++, dp++)
             continue;
         if (*cp == 0 && (*dp == '=' || *dp == 0)) {
@@ -56,7 +56,7 @@ getenvv(ename)
     register char *cp, *dp;
     register char **ep = environ;
 
-    while (dp = *ep++) {
+    while ((dp = *ep++) != NULL) {
         for (cp = ename; *cp == *dp && *cp; cp++, dp++)
             continue;
         if (*cp == 0 && (*dp == '=' || *dp == 0))
@@ -71,7 +71,6 @@ main(argc,argv)
     char *argv[];
 {
     char buf[1000];
-    FILE *fp;
     register char *p;
 
     openlog("su", LOG_ODELAY, LOG_AUTH);
@@ -100,10 +99,14 @@ again:
         fprintf(stderr, "Unknown login: %s\n", user);
         exit(1);
     }
+    if (pwd->pw_uid != 0) {
+        fprintf(stderr, "Password-free su accepts only root\n");
+        exit(1);
+    }
     /*
      * Only allow those in group zero to su to root.
      */
-    if (pwd->pw_uid == 0) {
+    {
         struct  group *gr;
         int i;
 
@@ -132,10 +135,8 @@ again:
      * without it, which is this profile's password-free escalation.
      */
     endpwent();
-    if (pwd->pw_uid == 0) {
-        syslog(LOG_NOTICE, "%s on %s", Getlogin(), ttyname(2));
-        closelog();
-    }
+    syslog(LOG_NOTICE, "%s on %s", Getlogin(), ttyname(2));
+    closelog();
     if (setgid(pwd->pw_gid) < 0) {
         perror("su: setgid");
         exit(3);

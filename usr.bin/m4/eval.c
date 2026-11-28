@@ -49,6 +49,7 @@ static char sccsid[] = "@(#)eval.c	8.1 (Berkeley) 6/6/93";
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "mdef.h"
 #include "stdd.h"
 #include "extern.h"
@@ -287,8 +288,14 @@ register int td;
 	/*
 	 * dotemp - create a temporary file
 	 */
-		if (argc > 2)
-			pbstr(mktemp(argv[2]));
+		if (argc > 2) {
+			n = mkstemp(argv[2]);
+			if (n < 0)
+				oops("%s: cannot create temporary file.", argv[2]);
+			if (close(n) < 0)
+				oops("%s: cannot close temporary file.", argv[2]);
+			pbstr(argv[2]);
+		}
 		break;
 
 	case TRNLTYPE:
@@ -645,9 +652,8 @@ register int n;
 	if (n < 0 || n >= MAXOUT)
 		n = 0;		       /* bitbucket */
 	if (outfile[n] == NULL) {
-		m4temp[UNIQUE] = n + '0';
-		if ((outfile[n] = fopen(m4temp, "w")) == NULL)
-			oops("%s: cannot divert.", m4temp);
+		if ((outfile[n] = tmpfile()) == NULL)
+			oops("cannot create diversion temporary file.");
 	}
 	oindex = n;
 	active = outfile[n];

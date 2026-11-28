@@ -124,8 +124,12 @@ main(argc, argv)
     }
     mytty = strrchr(mytty, '/') + 1;
     if (histtya) {
-        strcpy(histty, "/dev/");
-        strcat(histty, histtya);
+		if (strchr(histtya, '/') != NULL ||
+		    snprintf(histty, sizeof(histty), "/dev/%s", histtya) >=
+		    (int)sizeof(histty)) {
+			fprintf(stderr, "write: invalid tty name\n");
+			exit(1);
+		}
     }
     while (fread((char *)&ubuf, sizeof(ubuf), 1, uf) == 1) {
         if (ubuf.ut_name[0] == '\0')
@@ -209,7 +213,7 @@ cont:
         if (i <= 0)
             eof();
         if (buf[0] == '!') {
-            buf[i] = 0;
+			buf[i == (int)sizeof(buf) ? i - 1 : i] = 0;
             ex(buf);
             continue;
         }

@@ -55,6 +55,14 @@ MUTATIONS = {
         """\t\t\tif (!rlimit_stack_admits((u_int)sfp -
 \t\t\t    (u_int)u.u_procp->p_daddr)) {""",
     ),
+    "frame-span-unchecked": (
+        """\tif (baduaddr_span((caddr_t)sfp, sizeof(*sfp))) {
+\t\tfatalsig(SIGILL);
+\t\treturn;
+\t}
+""",
+        "",
+    ),
 }
 
 

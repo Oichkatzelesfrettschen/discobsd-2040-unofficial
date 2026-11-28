@@ -380,6 +380,13 @@ check_user_area_reads(void)
 	u.u_rval = 0x1234abcd;
 	offset = (int)((char *)&u.u_rval - (char *)&u);
 	HK_CHECK(run_request(PT_READ_U, (u_int)offset, 0) == 0);
+	HK_CHECK(ipc.ip_req == -1);
+	HK_CHECK(ipc.ip_data == 0);
+
+	reset();
+	frame->tf_r7 = 0x1234abcd;
+	offset = (int)((char *)&frame->tf_r7 - (char *)&u);
+	HK_CHECK(run_request(PT_READ_U, (u_int)offset, 0) == 0);
 	HK_CHECK(ipc.ip_data == 0x1234abcd);
 
 	reset();
@@ -387,6 +394,7 @@ check_user_area_reads(void)
 	HK_CHECK(ipc.ip_req == -1);
 	HK_CHECK(ipc.ip_data == 0x2468ace0);
 	HK_CHECK(ptrace_user_word_offset_valid(-4) == 0);
+	HK_CHECK(ptrace_user_word_offset_valid(1) == 0);
 	HK_CHECK(ptrace_user_word_offset_valid(USIZE - 3) == 0);
 	HK_CHECK(ptrace_user_word_offset_valid(USIZE - (int)sizeof(int)) == 1);
 	HK_CHECK(ptrace_user_word_offset_valid(USIZE) == 0);

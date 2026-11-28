@@ -3,6 +3,7 @@ import socket
 import threading
 import urllib.error
 import urllib.request
+from types import SimpleNamespace
 
 import pytest
 
@@ -46,6 +47,31 @@ def test_oversized_and_64bit_frames_are_refused_before_payload():
     assert web.ws_read(io.BytesIO(b"")) == (None, None)
 
 
+def test_truncated_mask_and_payload_are_refused():
+    frame = masked(b"input")
+    assert web.ws_read(io.BytesIO(frame[:4])) == (None, None)
+    assert web.ws_read(io.BytesIO(frame[:-1])) == (None, None)
+
+
+def test_frame_deadline_spans_mask_and_payload(monkeypatch):
+    frame = masked(b"input")
+    now = 0.0
+    parts = iter((frame[2:6], frame[6:]))
+    sock = SimpleNamespace(recv=lambda _: next(parts))
+
+    def ready(readers, _, __, timeout):
+        nonlocal now
+        now += min(0.6, timeout)
+        return (readers if timeout >= 0.6 else [], [], [])
+
+    monkeypatch.setattr(web, "time", SimpleNamespace(monotonic=lambda: now))
+    monkeypatch.setattr(web, "select", SimpleNamespace(select=ready))
+    reader = web.FrameReader(sock, frame[:2], 1.0)
+    with pytest.raises(web.IncompleteFrame):
+        reader.read_frame()
+    assert now == 1.0
+
+
 def test_close_opcode_is_reported():
     op, _ = web.ws_read(io.BytesIO(masked(b"", opcode=0x8)))
     assert op == 0x8
@@ -62,12 +88,11 @@ def test_token_sources():
 
 
 def test_authorization_rules():
-    assert web.authorized(True, None, None)
-    assert not web.authorized(False, None, None)
-    assert web.authorized(False, "s3cret", "s3cret")
-    assert not web.authorized(False, "s3cret", "wrong")
-    assert not web.authorized(True, "s3cret", None)
-    assert not web.authorized(False, "s3cret", None)
+    assert not web.authorized(None, None)
+    assert web.authorized("s3cret", "s3cret")
+    assert not web.authorized("s3cret", "wrong")
+    assert not web.authorized("s3cret", chr(0x2603))
+    assert not web.authorized("s3cret", None)
 
 
 def test_origin_must_match_host():
@@ -115,17 +140,19 @@ def server():
         httpd.server_close()
 
 
-def test_page_requires_token_off_loopback(server):
+def test_page_requires_token_on_loopback(server):
     httpd, _ = server
-    httpd.is_loopback = False
     base = "http://127.0.0.1:%d/" % httpd.server_address[1]
     with pytest.raises(urllib.error.HTTPError) as err:
         urllib.request.urlopen(base)
-    assert err.value.code == 401
-    page = urllib.request.urlopen(base + "?token=tok").read()
+    with err.value:
+        assert err.value.code == 401
+    with urllib.request.urlopen(base + "?token=tok") as response:
+        page = response.read()
     assert b"GizmoBSD console" in page and b"xterm" in page
     req = urllib.request.Request(base, headers={"Authorization": "Bearer tok"})
-    assert urllib.request.urlopen(req).status == 200
+    with urllib.request.urlopen(req) as response:
+        assert response.status == 200
 
 
 def test_page_has_no_raw_control_characters():
@@ -139,6 +166,19 @@ def test_page_has_no_raw_control_characters():
     assert "id=reader" in web.PAGE and "screenReaderMode:reader" in web.PAGE
     assert "minimumContrastRatio:4.5" in web.PAGE
     assert "focus-visible" in web.PAGE and "id=show" in web.PAGE
+    assert web.XTERM_INTEGRITY in web.PAGE
+    assert web.XTERM_CSS_INTEGRITY in web.PAGE
+    script_policy = web.content_security_policy().partition("script-src")[2].partition(";")[0]
+    assert "'unsafe-inline'" not in script_policy
+
+
+def test_page_sends_browser_security_policy(server):
+    httpd, _ = server
+    base = "http://127.0.0.1:%d/?token=tok" % httpd.server_address[1]
+    response = urllib.request.urlopen(base)
+    assert response.headers["Content-Security-Policy"] == web.content_security_policy()
+    assert response.headers["Referrer-Policy"] == "no-referrer"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
 
 
 def ws_connect(port, token="tok", origin=None):
@@ -232,6 +272,20 @@ def test_silent_viewer_is_pinged_then_dropped(server):
     second.close()
 
 
+def test_partial_frame_has_one_completion_deadline(server):
+    httpd, lines = server
+    httpd.ping_interval = 0.2
+    s, status = ws_connect(httpd.server_address[1])
+    read_frames(s, b"login: ", got=status)
+    s.sendall(b"\x81")
+    deadline = 30
+    while not lines[0].closed and deadline:
+        threading.Event().wait(0.05)
+        deadline -= 1
+    assert lines[0].closed
+    s.close()
+
+
 def test_frame_sent_with_the_handshake_reaches_the_board(server):
     """A frame in the same segment as the upgrade request lands in the
     handler's read-ahead buffer; the session reader must start from it."""
@@ -278,11 +332,18 @@ def test_cli_refuses_lan_bind_without_token(capsys, monkeypatch):
     assert "refusing" in capsys.readouterr().err
 
 
+def test_cli_refuses_loopback_bind_without_token(capsys, monkeypatch):
+    monkeypatch.setattr(web.ports, "find_board", lambda **_: "FAKE")
+    monkeypatch.delenv(web.ports.TOKEN_ENV, raising=False)
+    monkeypatch.delenv("CREDENTIALS_DIRECTORY", raising=False)
+    assert web.main([]) == 1
+    assert "refusing" in capsys.readouterr().err
+
+
 def test_cli_reads_token_from_the_environment(capsys, monkeypatch):
     # ExecStart no longer carries --token; the unit's EnvironmentFile puts
     # GIZMOBSD_WEB_TOKEN in the process environment instead, and this
-    # accepts a loopback bind (no token required) to prove start actually
-    # ran rather than exercising the refusal path above.
+    # accepts a loopback bind with that token to prove start actually ran.
     monkeypatch.setattr(web.ports, "find_board", lambda **_: "FAKE")
     monkeypatch.setenv(web.ports.TOKEN_ENV, "from-env")
 

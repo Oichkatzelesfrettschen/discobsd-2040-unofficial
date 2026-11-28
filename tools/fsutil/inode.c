@@ -631,9 +631,21 @@ cloop:
     last_offset = 0;
     for (offset = 0; offset < dir.size; last_offset = offset, offset += dirent.reclen) {
         unsigned char fname [BSDFS_BSIZE - 12];
+        size_t namesize;
 
         if (! fs_inode_read (&dir, offset, (unsigned char*) &dirent, sizeof(dirent))) {
             fprintf (stderr, "inode %d: read error at offset %ld\n",
+                dir.number, offset);
+            return 0;
+        }
+        namesize = ((size_t)dirent.namlen + 4U) & ~3U;
+        if (dirent.reclen < sizeof(dirent) ||
+            (dirent.reclen & 3U) != 0 ||
+            dirent.reclen > dir.size - offset ||
+            dirent.reclen > BSDFS_BSIZE - offset % BSDFS_BSIZE ||
+            dirent.namlen >= sizeof(fname) ||
+            namesize > dirent.reclen - sizeof(dirent)) {
+            fprintf(stderr, "inode %d: invalid directory record at offset %ld\n",
                 dir.number, offset);
             return 0;
         }

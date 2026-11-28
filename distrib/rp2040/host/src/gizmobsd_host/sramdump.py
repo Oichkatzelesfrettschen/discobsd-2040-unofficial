@@ -35,8 +35,10 @@ import bisect
 import glob
 import os
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -493,11 +495,13 @@ def read_devices(sysfs: str) -> dict[str, Device]:
 
 class Capture:
     def __init__(
-        self, port: str, sysfs: str, out_dir: str, resume: bool, log=None, flash_end=FLASH_END
+        self, port: str, sysfs: str, out_dir: str, directory: int, resume: bool,
+        log=None, flash_end=FLASH_END
     ):
         self.port = port
         self.sysfs = sysfs
         self.out_dir = out_dir
+        self.directory = directory
         self.flash_end = flash_end
         self.resume = resume
         self.log = log or (lambda text: print(text, file=sys.stderr))
@@ -532,7 +536,11 @@ class Capture:
         self.log("gizmobsd-sramdump: " + " ".join(cmd))
         try:
             done = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=PICOTOOL_TIMEOUT, check=False
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=PICOTOOL_TIMEOUT,
+                check=False,
             )
         except subprocess.TimeoutExpired as exc:
             raise ToolError(
@@ -605,17 +613,35 @@ class Capture:
                 )
 
     def save(self, start: int, end: int, name: str, size: int) -> str:
-        path = os.path.join(self.out_dir, name)
-        self.picotool("save", "-r", "0x%08x" % start, "0x%08x" % end, path)
-        if not os.path.exists(path):
-            raise ToolError("picotool wrote no %s" % name)
-        got = os.path.getsize(path)
+        # Use a private path for picotool and publish through the bound output directory.
+        with tempfile.TemporaryDirectory(prefix="gizmobsd-sramdump-") as stage:
+            staged = os.path.join(stage, name)
+            self.picotool("save", "-r", "0x%08x" % start, "0x%08x" % end, staged)
+            try:
+                saved = os.open(staged, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            except FileNotFoundError as exc:
+                raise ToolError("picotool wrote no %s" % name) from exc
+            with os.fdopen(saved, "rb") as source:
+                info = os.fstat(source.fileno())
+                if not stat.S_ISREG(info.st_mode):
+                    raise ToolError("picotool did not write a regular %s" % name)
+                got = info.st_size
+                destination = name if got == size else name + ".incomplete"
+                output = os.open(
+                    destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600,
+                    dir_fd=self.directory,
+                )
+                try:
+                    with os.fdopen(output, "wb") as target:
+                        shutil.copyfileobj(source, target)
+                except BaseException:
+                    os.unlink(destination, dir_fd=self.directory)
+                    raise
         if got != size:
-            os.replace(path, path + ".incomplete")
             raise ToolError(
                 "%s holds %d bytes, expected %d; kept as %s.incomplete" % (name, got, size, name)
             )
-        return path
+        return os.path.join(self.out_dir, name)
 
     def run(self) -> None:
         dev = self.target()
@@ -677,11 +703,11 @@ def plan_text(
     else:
         lines.append("  1. port %s already shows the boot ROM; no reset is issued" % dev.port)
     lines.append(
-        "  3. picotool save -r 0x%08x 0x%08x %s"
+        "  3. save range 0x%08x 0x%08x with picotool, then publish %s"
         % (SRAM_BASE, SRAM_END, os.path.join(out_dir, SRAM_FILE))
     )
     lines.append(
-        "  4. picotool save -r 0x%08x 0x%08x %s"
+        "  4. save range 0x%08x 0x%08x with picotool, then publish %s"
         % (FLASH_BASE, flash_end, os.path.join(out_dir, FLASH_FILE))
     )
     lines.append(
@@ -738,13 +764,18 @@ def run_capture(args) -> int:
         return 2
     if shutil.which("picotool") is None:
         raise ToolError("picotool is not installed (apt, pacman or brew install picotool)")
-    for name in (SRAM_FILE, FLASH_FILE):
-        if os.path.exists(os.path.join(out_dir, name)):
-            raise ToolError(
-                "%s already exists in %s; name a fresh --out directory" % (name, out_dir)
-            )
-    os.makedirs(out_dir, exist_ok=True)
-    Capture(port, sysfs, out_dir, args.resume, flash_end=flash_end).run()
+    try:
+        os.mkdir(out_dir, 0o700)
+    except FileExistsError as exc:
+        raise ToolError("%s already exists; name a fresh --out directory" % out_dir) from exc
+    directory = os.open(out_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        info = os.fstat(directory)
+        if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o700:
+            raise ToolError("capture output must be a private directory owned by this user")
+        Capture(port, sysfs, out_dir, directory, args.resume, flash_end=flash_end).run()
+    finally:
+        os.close(directory)
     return 0
 
 

@@ -154,25 +154,44 @@ sample_tick(void)
 		played[nplayed++] = (unsigned char)cc;
 }
 
-void
-sleep(caddr_t chan, int pri)
+int
+tsleep(caddr_t chan, int pri, int ticks)
 {
-	void (*fn)(char *) = NULL;
-	char *arg = NULL;
 	int i;
 
+	if (ticks <= 0) {
+		fprintf(stderr, "FAIL an unbounded sleep\n");
+		exit(2);
+	}
 	if (pri >= 25) {
 		fprintf(stderr, "FAIL an interruptible sleep, priority %d\n", pri);
 		failures++;
 	}
-	if (!take_callout(chan, &fn, &arg) || ++naps > 2000) {
+	if (chan == NULL || ++naps > 2000) {
 		fprintf(stderr, "FAIL a sleep that nothing ends\n");
 		exit(2);
 	}
 	if (clock_runs())
 		for (i = 0; i < 4 * PCM_RATE / 1000; i++)
 			sample_tick();
+	return 0;
+}
+
+void
+sleep(caddr_t chan, int pri)
+{
+	void (*fn)(char *) = NULL;
+	char *arg = NULL;
+
+	if (pri >= 25)
+		failures++;
+	if (!take_callout(chan, &fn, &arg)) {
+		fprintf(stderr, "FAIL a split sleep without its callout\n");
+		exit(2);
+	}
 	fn(arg);
+	fprintf(stderr, "FAIL a callout can fire before sleep joins its queue\n");
+	failures++;
 }
 
 int

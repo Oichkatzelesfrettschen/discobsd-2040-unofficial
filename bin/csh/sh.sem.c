@@ -199,11 +199,7 @@ execute(t, wanttty, pipein, pipeout)
 					(void) signal(SIGINT, SIG_IGN);
 					(void) signal(SIGQUIT, SIG_IGN);
 				}
-				if (wanttty > 0)
-					(void) ioctl(FSHTTY, TIOCSPGRP,
-						(char *)&pgrp);
-				if (wanttty >= 0 && tpgrp >= 0)
-					(void) setpgrp(0, pgrp);
+				psetjobgroup(pgrp, wanttty);
 				if (tpgrp > 0)
 					tpgrp = 0;
 				if (t->t_dflg & FNOHUP)

@@ -993,6 +993,21 @@ donotify(v)
 	pp->p_flags |= PNOTIFY;
 }
 
+void
+psetjobgroup(int pgrp, int wanttty)
+{
+	long mask;
+
+	if (wanttty < 0 || tpgrp < 0 || setpgrp(0, pgrp) < 0)
+		return;
+	if (wanttty > 0) {
+		/* The new group is in the background until the ioctl succeeds. */
+		mask = sigblock(sigmask(SIGTTOU));
+		(void) ioctl(FSHTTY, TIOCSPGRP, (char *)&pgrp);
+		(void) sigsetmask(mask);
+	}
+}
+
 /*
  * Do the fork and whatever should be done in the child side that
  * should not be done if we are not forking at all (like for simple builtin's)
@@ -1061,10 +1076,7 @@ pfork(t, wanttty)
 			(void) signal(SIGINT, SIG_IGN);
 			(void) signal(SIGQUIT, SIG_IGN);
 		}
-		if (wanttty > 0)
-			(void) ioctl(FSHTTY, TIOCSPGRP, (char *)&pgrp);
-		if (wanttty >= 0 && tpgrp >= 0)
-			(void) setpgrp(0, pgrp);
+		psetjobgroup(pgrp, wanttty);
 		if (tpgrp > 0)
 			tpgrp = 0;		/* gave tty away */
 		/*

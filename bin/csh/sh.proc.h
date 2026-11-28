@@ -82,3 +82,5 @@ int	psigint();
 struct	process	*pgetcurr();
 struct	process	*plookup();
 struct	process *pfind();
+
+void psetjobgroup(int, int);

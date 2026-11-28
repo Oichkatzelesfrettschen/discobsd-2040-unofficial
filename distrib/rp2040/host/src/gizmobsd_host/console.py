@@ -95,6 +95,8 @@ def write_env(path: Path, values: dict[str, str]) -> None:
                 "%s: web.env values are limited to letters, digits and . _ ~ : -" % key
             )
     path.parent.mkdir(parents=True, exist_ok=True)
+    if os.name != "nt":
+        path.parent.chmod(0o700)
     body = "".join(f"{k}={v}\n" for k, v in values.items())
     tmp = path.with_suffix(".tmp")
     fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -117,10 +119,10 @@ def lan_ip() -> str:
 
 def urls(ip: str, token: str, web_port: int, link_port: int, mdns: bool = True) -> dict[str, str]:
     full = "http://%s:%d/?token=%s" % (ip, web_port, token)
-    out = {"short": "http://%s:%d/" % (ip, link_port), "full": full}
+    out = {"short": "http://%s:%d/?token=%s" % (ip, link_port, token), "full": full}
     name = socket.gethostname().split(".")[0].lower()
     if mdns and name:
-        out["mdns"] = "http://%s.local:%d/" % (name, link_port)
+        out["mdns"] = "http://%s.local:%d/?token=%s" % (name, link_port, token)
     return out
 
 
@@ -134,6 +136,14 @@ def systemd_units_installed(home=None) -> bool:
         home / ".config" / "systemd" / "user",
     ]
     return any((d / UNITS[0]).exists() for d in candidates)
+
+
+def systemd_config_matches(environ=None, home=None) -> bool:
+    """True when the fixed user units read the selected config directory."""
+    environ = os.environ if environ is None else environ
+    home = Path.home() if home is None else Path(home)
+    selected = environ.get("XDG_CONFIG_HOME")
+    return selected is None or Path(selected) == home / ".config"
 
 
 def _pid_alive(pid: int) -> bool:
@@ -162,7 +172,12 @@ def _spawn_detached(argv: list[str], log: Path, extra_env: dict[str, str] | None
     processes, the same exposure a systemd EnvironmentFile has.
     """
     log.parent.mkdir(parents=True, exist_ok=True)
-    out = open(log, "ab")
+    if os.name != "nt":
+        log.parent.chmod(0o700)
+    fd = os.open(str(log), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    if os.name != "nt":
+        os.fchmod(fd, 0o600)
+    out = os.fdopen(fd, "ab")
     kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": out, "stderr": subprocess.STDOUT}
     if extra_env:
         kwargs["env"] = {**os.environ, **extra_env}
@@ -318,7 +333,7 @@ def cmd_up(args) -> int:
     # The mDNS name resolves to the host's LAN address, which only a
     # wildcard bind serves.
     links = urls(ip, token, args.port, args.link_port, mdns=bind.is_unspecified)
-    if systemd_units_installed() and not args.detached:
+    if systemd_units_installed() and systemd_config_matches() and not args.detached:
         subprocess.call(["systemctl", "--user", "daemon-reload"])
         rc = subprocess.call(["systemctl", "--user", "restart", *UNITS])
         if rc != 0:
@@ -368,7 +383,7 @@ def cmd_up(args) -> int:
 
 def cmd_down(args) -> int:
     conf = config_dir()
-    if systemd_units_installed() and not args.detached:
+    if systemd_units_installed() and systemd_config_matches() and not args.detached:
         subprocess.call(["systemctl", "--user", "stop", *reversed(UNITS)])
         print("GizmoBSD console stopped (systemd user units).")
         return 0
@@ -382,7 +397,7 @@ def cmd_status(args) -> int:
     values = read_env(conf / "web.env")
     ip = values.get("GIZMOBSD_HOST_IP") or lan_ip()
     short = "http://%s:%d/" % (ip, args.link_port)
-    if systemd_units_installed() and not args.detached:
+    if systemd_units_installed() and systemd_config_matches() and not args.detached:
         rc = subprocess.call(["systemctl", "--user", "is-active", "--quiet", UNITS[0]])
         running = rc == 0
     else:

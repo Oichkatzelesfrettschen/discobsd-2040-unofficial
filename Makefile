@@ -733,7 +733,14 @@ check-as-ld-scratch: check-python
 		${MAKE} -C tools/aoututils/ar all
 		${PYTHON} tests/as_ld_scratch/check.py
 
-.PHONY: check-native-linker check-as-ld-scratch
+# Ten shipped temporary-file users keep data in an exclusive object, a
+# private directory, or a protected parent. Sixteen earlier pathname or
+# shared-record mechanisms must each fail the source-ownership verifier before
+# its production check.
+check-tempfile-ownership: check-python
+		${PYTHON} tools/check_tempfile_ownership.py --self-test
+
+.PHONY: check-native-linker check-as-ld-scratch check-tempfile-ownership
 
 check-signal-sets: check-python
 		${PYTHON} tests/libc_contracts/signal_set_calibrate.py
@@ -2214,7 +2221,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-rmdir-contracts check-reboot-contracts check-packed-margin check-tee-contracts check-time-contracts \
 		check-libtcl-contracts check-lex-tables \
 		check-du-contracts check-resize-contracts \
-		check-aout check-native-linker check-as-ld-scratch check-native-nm check-kernel check-fs-stress check-fsck-inode-range \
+		check-aout check-native-linker check-as-ld-scratch check-tempfile-ownership check-native-nm check-kernel check-fs-stress check-fsck-inode-range \
 		check-kernel-metadata check-root-noatime \
 		check-libc-environment check-libc-sysctl check-libc-termios check-tty-kernel \
 		check-umount-contracts check-backgammon-contracts \

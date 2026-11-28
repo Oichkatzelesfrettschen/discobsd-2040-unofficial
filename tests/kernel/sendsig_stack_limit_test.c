@@ -47,7 +47,7 @@ typedef unsigned int u_int;
 typedef unsigned long u_long;
 
 /* user_context.h validates user addresses through this probe; sendsig() does not call it. */
-static int baduaddr_span(caddr_t, u_int) __attribute__((unused));
+static int baduaddr_span(caddr_t, u_int);
 
 #define USER_DATA_START UINT32_C(0x20000000)
 #include "../../sys/arch/rp2040/include/frame.h"
@@ -59,12 +59,14 @@ static int baduaddr_span(caddr_t, u_int) __attribute__((unused));
 #define SENDSIG_FUNCTIONS "sendsig_stack_limit_functions.c"
 #endif
 
+static int invalid_user_span;
+
 static int
 baduaddr_span(caddr_t address, u_int length)
 {
 	(void)address;
 	(void)length;
-	return 0;
+	return invalid_user_span;
 }
 
 #define SA_ONSTACK 0x0001
@@ -180,6 +182,39 @@ reset_fixture(u_int depth)
 	frame.tf_psr = 0x01000000U;
 	fatalsig_calls = 0;
 	fatalsig_signal = 0;
+	invalid_user_span = 0;
+}
+
+static void
+check_alternate_stack(void)
+{
+	u_int expected;
+	struct trapframe before;
+
+	reset_fixture(RECORDED_STACK);
+	u.u_psflags = SAS_ALTSTACK;
+	u.u_sigonstack = sigmask(SIGUSR1);
+	u.u_sigstk.ss_base = (caddr_t)(window + 2048);
+	u.u_sigstk.ss_size = 1024;
+	expected = (u_int)(uintptr_t)(window + 2048 + 1024 - FRAME_BYTES);
+	sendsig(handler, SIGUSR1, 0);
+	CHECK("a valid alternate stack receives the frame",
+	    fatalsig_calls == 0 && frame.tf_sp == expected &&
+	    (u.u_sigstk.ss_flags & SA_ONSTACK) != 0);
+
+	reset_fixture(RECORDED_STACK);
+	u.u_psflags = SAS_ALTSTACK;
+	u.u_sigonstack = sigmask(SIGUSR1);
+	u.u_sigstk.ss_base = (caddr_t)(window + 2048);
+	u.u_sigstk.ss_size = 1024;
+	invalid_user_span = 1;
+	before = frame;
+	sendsig(handler, SIGUSR1, 0);
+	CHECK("an invalid alternate-stack frame ends the process",
+	    fatalsig_calls == 1 && fatalsig_signal == SIGILL);
+	CHECK("an invalid alternate stack stays unpublished",
+	    (u.u_sigstk.ss_flags & SA_ONSTACK) == 0 &&
+	    memcmp(&frame, &before, sizeof(frame)) == 0);
 }
 
 static void
@@ -231,6 +266,8 @@ main(void)
 	reset_fixture(LIMIT_BYTES * 2U);
 	check_refused("a frame far past the limit ends the process",
 	    LIMIT_BYTES * 2U);
+
+	check_alternate_stack();
 
 	if (failures != 0) {
 		fprintf(stderr, "sendsig stack limit: %d failure(s)\n", failures);

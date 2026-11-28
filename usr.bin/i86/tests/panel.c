@@ -45,6 +45,11 @@
  * I86_PANEL names with the number of the close appended. I86_PANEL_FAIL
  * makes opens fail: "open" every one, "reopen" every one after the first;
  * "read" makes LCDG_READ fail as a kernel without LCD_GFX_EXT does.
+ * I86_PANEL_FAIL_AT=window:L:N or write:L:N fails once the Nth indexed
+ * window that covers glass line L, or the first write into it, as a device
+ * that drops a command does; the failed window is abandoned without an
+ * error count. N of 0 only counts: the window count of the line goes to the
+ * counters as "covers".
  */
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -73,6 +78,8 @@ static int isopen, haswin;
 static unsigned opens, closes;
 static unsigned long errors, pixels, windows, fills, filled, tallest, scrolls;
 static unsigned colmod;
+static unsigned long covers;		/* indexed windows over the line */
+static int fail_write;			/* the next write fails once */
 
 static int
 bad(int e)
@@ -157,10 +164,40 @@ panel_close(void)
 	if ((f = fopen(path, "w")) == NULL)
 		return (0);
 	fprintf(f, "errors %lu\npixels %lu\nwindows %lu\nfills %lu\n"
-	    "colmod %x\ntallest %lu\nfilled %lu\nscrolls %lu\n", errors, pixels,
-	    windows, fills, colmod, tallest, filled, scrolls);
+	    "colmod %x\ntallest %lu\nfilled %lu\nscrolls %lu\ncovers %lu\n",
+	    errors, pixels, windows, fills, colmod, tallest, filled, scrolls,
+	    covers);
 	fclose(f);
 	return (0);
+}
+
+/* I86_PANEL_FAIL_AT: whether this indexed window is the one to drop. */
+static int
+fail_at(const struct lcdg_window *w)
+{
+	static int done;
+	const char *spec = getenv("I86_PANEL_FAIL_AT");
+	unsigned line;
+	unsigned long nth;
+	int write;
+
+	if (spec == NULL)
+		return (0);
+	if (strncmp(spec, "window:", 7) == 0)
+		write = 0;
+	else if (strncmp(spec, "write:", 6) == 0)
+		write = 1;
+	else
+		return (0);
+	if (sscanf(spec + (write ? 6 : 7), "%u:%lu", &line, &nth) != 2 ||
+	    line < w->y || line >= (unsigned)w->y + w->h)
+		return (0);
+	covers++;
+	if (nth == 0 || covers != nth || done)
+		return (0);
+	done = 1;
+	fail_write = write;
+	return (1);
 }
 
 int
@@ -215,6 +252,19 @@ panel_ioctl(unsigned long cmd, void *arg)
 		    (w->fmt == LCDG_WIN_BITS &&
 		    (w->fg >= LCDG_NPAL || w->bg >= LCDG_NPAL)))
 			return (bad(EINVAL));
+		if (w->fmt == LCDG_WIN_INDEX && fail_at(w)) {
+			if (fail_write) {
+				/* The window opens and its first write fails. */
+				win = *w;
+				win_at = 0;
+				win_total = (unsigned long)w->w * w->h;
+				haswin = 1;
+				windows++;
+				return (0);
+			}
+			errno = EIO;
+			return (-1);
+		}
 		win = *w;
 		if (w->fmt == LCDG_WIN_INDEX && w->h > tallest)
 			tallest = w->h;
@@ -294,6 +344,13 @@ panel_write(const void *buf, unsigned long n)
 		return (bad(EBADF));
 	if (!haswin)
 		return (bad(EINVAL));
+	if (fail_write) {
+		/* A dropped write abandons the window. */
+		fail_write = 0;
+		haswin = 0;
+		errno = EIO;
+		return (-1);
+	}
 	if (n > 256)
 		n = 256;
 	switch (win.fmt) {

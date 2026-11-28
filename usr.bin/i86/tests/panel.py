@@ -206,6 +206,60 @@ MUTANTS = [
     ("gfx.c", "scroll_ok = !gfx_plain && DEV_IOCTL", "scroll_ok = DEV_IOCTL"),
     ("gfx.c", "\t\tscroll_rows = 0;\n\t\tscroll_ok", "\t\tscroll_ok"),
     ("gfx.c", "\t\tif (!gfx_plain &&", "\t\tif (1 &&"),
+    # Stage 16: a scroll start left by a text mode rotates the graphics lines
+    # unless the scroll area is defined again for the graphics mode.
+    (
+        "gfx.c",
+        "scroll_ok = !gfx_plain && DEV_IOCTL",
+        "scroll_ok = !gfx_plain && kind == K_TEXT && DEV_IOCTL",
+    ),
+    # Stage 14: the palette select bit alone changes the palette.
+    ("gfx.c", "(reg_color & 0x3f) : 0x200", "(reg_color & 0x1f) : 0x200"),
+    # Stage 15: the color burst bit alone changes the palette.
+    ("gfx.c", "(reg_mode & 4) << 4 | (reg_color & 0x3f)", "(reg_color & 0x3f)"),
+    # test_dropped: a line whose window or write failed is owed whole again,
+    # not as the bytes that differ from a copy the panel never received.
+    ("gfx.c", "if (ok && sent != NULL) {", "if (sent != NULL) {"),
+    # Stage 13 with 26 one-row scrolls: the 25th start is past the area.
+    (
+        "gfx.c",
+        "sc.line = (u_short)(GFX_Y0 + (scroll_rows + best) % 25 * 8);",
+        "sc.line = (u_short)(GFX_Y0 + (scroll_rows + best) * 8);",
+    ),
+    # Stage 13 with a scroll of 23 rows, the largest one the match rule
+    # takes: a scroll of 24 rows matches one row, which never exceeds the
+    # rows matching unmoved by two, so a bound of 24 on the search is
+    # equivalent and 23 is not.
+    ("gfx.c", "for (k = 1; k < 25; k++) {", "for (k = 1; k < 23; k++) {"),
+    # Stage 13 with a scroll of two rows: the copy of the cells moves with
+    # the scroll start by every row, not the first alone.
+    (
+        "gfx.c",
+        "for (k = 0; k < best; k++) {",
+        "for (k = 0; k < (best > 1 ? 1 : best); k++) {",
+    ),
+    # Stage 13 with the new bottom row equal to the old top row: the cursor
+    # mark that wraps with its row is cleared.
+    (
+        "gfx.c",
+        "cur_shown = (cur_shown + (25 - best) * cols) % (25 * cols);",
+        "cur_shown = cur_shown >= best * cols ? cur_shown - best * cols : GFX_NOCURSOR;",
+    ),
+    # Stage 17: a mode set between two graphics modes clears nothing.
+    (
+        "gfx.c",
+        "stale = stale == 1 || k == K_TEXT || kind == K_TEXT ? 1 : 2;",
+        "stale = 1;",
+    ),
+    # check.py builds tests/draintest.c with the address and undefined
+    # behavior sanitizers: the join loop reads no line past the last.
+    ("gfx.c", "y + n < LINES &&\n\t\t    BIT(owed, y + n)", "BIT(owed, y + n)"),
+    # test_capture: the menu reports a capture of a closed panel.
+    (
+        "gfx.c",
+        "\tif (!gfx_on)\n\t\treturn (-1);\n\tif (!stale",
+        "\tif (!gfx_on)\n\t\treturn (1);\n\tif (!stale",
+    ),
 ]
 
 
@@ -413,6 +467,22 @@ def expected(stage, fonts, boot):
     return text_frame(fonts, cells, 80, 5)
 
 
+def scrolled(fonts, keys):
+    """The frame of stage 13 after keys: the top row blank, the cursor at
+    row 5, column 10, and each key scrolls its low five bits' rows up; a
+    lowercase key also writes a distinct row at the bottom."""
+    ramp = [((0x4567 + 0x0123 * i) & 255, (0x4567 + 0x0123 * i) >> 8 & 255) for i in range(2000)]
+    cells = [(32, 7)] * 80 + ramp[80:]
+    count = 0
+    for key in keys:
+        rows = ord(key) & 0x1F
+        cells = cells[80 * rows :] + [(32, 7)] * (80 * rows)
+        if key.islower():
+            count += 1
+            cells[1920:] = [(j, count) for j in range(80)]
+    return text_frame(fonts, cells, 80, 5 * 80 + 10)
+
+
 def read_frame(path):
     with open(path, "rb") as handle:
         data = handle.read()
@@ -540,6 +610,87 @@ def test_stages(binary, work, fonts, boot):
     # in one window, so the tallest graphics window is exactly 16 lines.
     if tallest != 16:
         raise Failure("graphics windows reached %d lines; a drain sends 16" % tallest)
+
+
+def one_run(binary, work, keys, what, **kwargs):
+    """The one close of a session, its device counters free of errors."""
+    done, closes = run(binary, work, keys, **kwargs)
+    if len(closes) != 1:
+        raise Failure("%s: the panel was closed %d times" % (what, len(closes)))
+    if closes[0][1]["errors"]:
+        raise Failure("%s: the device rejected %d operations" % (what, closes[0][1]["errors"]))
+    return closes[0]
+
+
+def test_gaps(binary, work, fonts, boot):
+    """Stages 13 to 17: scrolls of the text screen at their limits, the
+    palette's own registers, a text scroll left before a graphics mode, and
+    a mode set between two graphics modes."""
+    wide = fonts[0]
+    # A scroll of one row where the new bottom row equals the old top row
+    # leaves the cursor's wrapped mark to the scroll's own bookkeeping: the
+    # mark and the cursor's new cell are the only cells drawn.
+    _, base = one_run(binary, work, "=", "panel stage 13")
+    for keys, rows in (("A", 1), ("a" * 26, 26), ("b", 2), ("w", 23)):
+        what = "panel stage 13, keys %s" % keys
+        frame, counts = one_run(binary, work, "=" + keys, what)
+        compare(frame, scrolled(fonts, keys), what)
+        # Each key is one move of the controller's scroll start.
+        if counts["scrolls"] != len(keys):
+            raise Failure("%s: %d scrolls of the start" % (what, counts["scrolls"]))
+        more = counts["pixels"] - base["pixels"]
+        if keys == "A" and more != 2 * 32:
+            raise Failure("%s: %d pixels; the cursor's two cells cost 64" % (what, more))
+        if len(keys) == 1 and more > 32 * (80 * rows + 2):
+            raise Failure("%s: the scroll sent %d pixels, past its new rows" % (what, more))
+    # The palette's registers one at a time: the select bit alone, then the
+    # color burst bit alone, and the colors follow each.
+    frame, _ = one_run(binary, work, ">x", "panel stage 14")
+    compare(frame, cga4_frame(Cga(wide).fields, 0x10), "panel stage 14")
+    frame, _ = one_run(binary, work, "?x", "panel stage 15")
+    compare(frame, cga4_frame(Cga(wide).fields, 0x30, burst_off=True), "panel stage 15")
+    # A text mode scrolled and drawn, then a graphics mode.
+    frame, counts = one_run(binary, work, "@xx", "panel stage 16")
+    compare(frame, cga4_frame(Cga(wide).fields, 0x30), "panel stage 16")
+    if counts["scrolls"] != 1:
+        raise Failure("panel stage 16: the text screen did not scroll")
+    # Mode 4, then mode 6: the lines are drawn whole over the last mode's
+    # and nothing is cleared beyond the open's clear of all 320 lines and
+    # the clear of the adapter's 200 when the first graphics mode follows
+    # the text of the boot.
+    frame, counts = one_run(binary, work, "Ax", "panel stage 17")
+    compare(frame, cga6_frame(Cga(wide, hires=True).fields, 0x3F), "panel stage 17")
+    if counts["filled"] != WIDTH * HEIGHT + 200 * WIDTH:
+        raise Failure("panel stage 17: %d pixels cleared" % counts["filled"])
+
+
+def test_dropped(binary, work, fonts, boot):
+    """A window or a write the device drops leaves the line it covered
+    owed whole: the copy of the lines sent holds what the panel received."""
+    line = TOP + 100
+    _, counted = one_run(
+        binary, work, "6", "dropped, counting", env={"I86_PANEL_FAIL_AT": "window:%d:0" % line}
+    )
+    last = counted["covers"]
+    if last < 1:
+        raise Failure("dropped: no window covers line %d" % line)
+    want = expected(6, fonts, boot)
+    for what in ("window", "write"):
+        frame, _ = one_run(
+            binary,
+            work,
+            "6x",
+            "dropped %s" % what,
+            env={"I86_PANEL_FAIL_AT": "%s:%d:%d" % (what, line, last)},
+        )
+        # The line that changed after the drop is sent whole, not as the
+        # four pixels of the byte stored.
+        if frame[line] != want[line]:
+            x = next(x for x in range(WIDTH) if frame[line][x] != want[line][x])
+            raise Failure(
+                "dropped %s: pixel (%d, %d) of the changed line is %r"
+                % (what, x, line, frame[line][x])
+            )
 
 
 def test_fallbacks(binary, work, fonts, boot):
@@ -757,6 +908,22 @@ def test_capture(binary, work, fonts, boot):
     with open(cap, "rb") as handle:
         if handle.read() != b"earlier":
             raise Failure("panel capture beside a planted link replaced the earlier file")
+    # A panel the menu could not take back is closed at the next Control-]:
+    # the capture is refused, and the menu says so rather than leaving the
+    # earlier file to pass for this panel's.
+    plain, closes = session(
+        binary,
+        work,
+        [
+            (b"", b"6"),
+            (b"", b"\x1d"),
+            (b"panel saved", b"x"),
+            (b"", b"\x1d"),
+            (b"panel not saved", b"q"),
+        ],
+        env={"I86_PANEL_FAIL": "reopen"},
+        extra=["-P", cap],
+    )
     bad = os.path.join(work, "absent", "cap.ppm")
     plain, closes = session(
         binary, work, [(b"", b"6"), (b"", b"\x1d"), (b"panel not saved", b"q")], extra=["-P", bad]
@@ -837,6 +1004,8 @@ def test(binary, src, work):
         handle.truncate(360 * 1024)
     fonts = load_fonts(src)
     test_stages(binary, work, fonts, boot)
+    test_gaps(binary, work, fonts, boot)
+    test_dropped(binary, work, fonts, boot)
     test_fallbacks(binary, work, fonts, boot)
     test_menu(binary, work, fonts, boot)
     test_capture(binary, work, fonts, boot)

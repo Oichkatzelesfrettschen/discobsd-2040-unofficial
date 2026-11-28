@@ -1,5 +1,11 @@
 /*	awk.lx.l	4.3	84/12/08	*/
 
+%top{
+/* Flex can declare fileno before the scanner prologue in strict ISO C. */
+#include <stdio.h>
+#undef fileno
+}
+
 %Start A str chc sc reg comment
 
 %{

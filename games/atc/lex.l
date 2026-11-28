@@ -1,3 +1,9 @@
+%top{
+/* Flex can declare fileno before the scanner prologue in strict ISO C. */
+#include <stdio.h>
+#undef fileno
+}
+
 %{
 /*
  * Copyright (c) 1987 by Ed James, UC Berkeley.  All rights reserved.

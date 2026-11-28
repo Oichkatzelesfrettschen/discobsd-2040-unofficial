@@ -66,8 +66,9 @@ print(json.dumps(source_snapshot(Path(".").resolve())))' > "$out/pic-source.json
     --output "$out/pic-replay"
 "$PYTHON" docs/research/xip-shared-libc/export-closure/link-pic-envelope.py \
     --root . --replay "$out/pic-replay" --output "$out/pic-link"
-relink=$("$PYTHON" tests/libc_xip_slots/relink_envelope.py --provider \
-    "$out/pic-replay/libc-pic.a" "$out/pic-link" | tail -n 1)
+relink_output=$("$PYTHON" tests/libc_xip_slots/relink_envelope.py --provider \
+    "$out/pic-replay/libc-pic.a" "$out/pic-link")
+relink=$(printf '%s\n' "$relink_output" | tail -n 1)
 cp "$relink/slot.elf" "$relink/provider.bin" "$out/"
 "$make" MACHINE=rp2040 fs FS_KBYTES=960 FSIMG="$out/root.img" \
     >"$out/root.log" 2>&1

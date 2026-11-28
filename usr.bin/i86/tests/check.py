@@ -108,6 +108,9 @@ TAIL = [
     "DONE",
 ]
 
+# pit_view() letting a guest read see time past waiting interrupts.
+HOLD_BAD = ("pc.c", "\theld = ticks_due;\n", "\theld = 0;\n")
+
 MUTANTS = [
     # clock.c, each through tests/clocktest.c: a step back counted as a
     # second, a 5 s gap counted whole, a clock set back moving the tick
@@ -524,7 +527,7 @@ MUTANTS = [
     # A guest read of the 8254 seeing time past waiting interrupts: the
     # interrupt count falls out of step with counter 2 on a host whose
     # sleeps run long (test_oversleep, hold_agrees).
-    ("pc.c", "\theld = ticks_due;\n", "\theld = 0;\n"),
+    HOLD_BAD,
 ]
 
 
@@ -1474,9 +1477,6 @@ OVERSLEEP_BAD = (
 # Counter 0's count in tests/pit.asm: 1 kHz.
 PIT_PERIOD = 0x04A9
 
-# pit_view() letting a guest read see time past waiting interrupts.
-HOLD_BAD = ("pc.c", "\theld = ticks_due;\n", "\theld = 0;\n")
-
 
 def hold_agrees(got):
     """Whether one whole run of tests/pit.asm counted the interrupts counter
@@ -1578,7 +1578,8 @@ def test_oversleep(src, work, cc, calibrate=False):
     paced judge passes, since the interrupts that came due during a sleep
     wait and arrive late rather than being lost. With calibrate, the build
     that keeps four interrupts waiting (OVERSLEEP_BAD) must count under
-    HOST_CLOCK_IRQ_STALLED in at least three of five single runs."""
+    HOST_CLOCK_IRQ_STALLED in at least three of five single runs.
+    Return whether the hold check ran."""
 
     def paced(binary):
         return lambda: pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
@@ -1590,7 +1591,7 @@ def test_oversleep(src, work, cc, calibrate=False):
     overrun = host_sleep_overrun_ms()
     if overrun > 2:
         print("NOT RUN oversleep fixture: this host's 1 ms sleeps run %.1f ms long" % overrun)
-        return
+        return False
     good = oversleep_build(src, work, cc, [OVERSLEEP])
     try:
         host_clock_irqs(paced(good), "-S 4.77, sleeps 15 ms long", HOST_CLOCK_IRQ_STALLED)
@@ -1600,7 +1601,7 @@ def test_oversleep(src, work, cc, calibrate=False):
         overrun = host_sleep_overrun_ms()
         if overrun > 2:
             print("NOT RUN oversleep fixture: 1 ms sleeps now run %.1f ms long" % overrun)
-            return
+            return False
         raise
     # The same build must keep its interrupt count in step with counter 2:
     # two agreeing runs of four at most (20 of 20 single runs agree with the
@@ -1613,7 +1614,7 @@ def test_oversleep(src, work, cc, calibrate=False):
             overrun = host_sleep_overrun_ms()
             if overrun > 2:
                 print("NOT RUN hold check: 1 ms sleeps now run %.1f ms long" % overrun)
-                return
+                return False
             raise
         notes.append(("agrees: " if agrees else "disagrees: ") + note)
         if sum(1 for n in notes if n.startswith("agrees")) == 2:
@@ -1622,13 +1623,13 @@ def test_oversleep(src, work, cc, calibrate=False):
         overrun = host_sleep_overrun_ms()
         if overrun > 2:
             print("NOT RUN hold check: 1 ms sleeps now run %.1f ms long" % overrun)
-            return
+            return False
         raise Failure(
             "-S 4.77, sleeps 15 ms long: interrupts out of step with counter 2: %s"
             % "; ".join(notes)
         )
     if not calibrate:
-        return
+        return True
     unheld = paced(oversleep_build(src, work, cc, [OVERSLEEP, HOLD_BAD]))
     notes = [hold_agrees(unheld()) for _ in range(5)]
     if sum(1 for agrees, _ in notes if agrees) > 1:
@@ -1659,6 +1660,7 @@ def test_oversleep(src, work, cc, calibrate=False):
         "oversleep check rejects the four-waiting build: %s"
         % ", ".join("%02Xh" % n for n in counts)
     )
+    return True
 
 
 def test_speed(binary, work):
@@ -2230,6 +2232,7 @@ def main(argv):
             print("i86 panel display test passed")
             if "--no-mutants" in argv:
                 return 0
+            rejected = 0
             for number, (name, old, new) in enumerate(MUTANTS, 1):
                 tree = os.path.join(work, "mutant")
                 shutil.rmtree(tree, ignore_errors=True)
@@ -2247,7 +2250,7 @@ def main(argv):
                     test_vectors(sstrun + "-mutant", src, work, suite="80286")
                     test_undefined(sstrun + "-mutant", work)
                     test_rep_burst(sstrun + "-mutant", work)
-                    test_oversleep(tree, work, cc)
+                    hold_ran = test_oversleep(tree, work, cc)
                 except (Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError):
                     # A mutant that hangs or dies has failed like any other. The
                     # line keeps the step's idle timer fed through the stage.
@@ -2255,9 +2258,13 @@ def main(argv):
                         "i86 mutant %d of %d rejected: %s" % (number, len(MUTANTS), name),
                         flush=True,
                     )
+                    rejected += 1
+                    continue
+                if (name, old, new) == HOLD_BAD and not hold_ran:
+                    print("NOT RUN i86 mutant %d: hold fixture unavailable" % number)
                     continue
                 raise Failure("mutant %d survives: %s: %r" % (number, name, old))
-            print("%d mutants fail the test" % len(MUTANTS))
+            print("%d mutants rejected, %d not run" % (rejected, len(MUTANTS) - rejected))
             for number, (name, old, new) in enumerate(panel.MUTANTS, 1):
                 tree = os.path.join(work, "mutant")
                 shutil.rmtree(tree, ignore_errors=True)

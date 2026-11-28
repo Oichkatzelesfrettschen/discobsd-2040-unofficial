@@ -423,14 +423,23 @@ kernel and root addresses, and the static kernel's exclusion of the provider.
 These observations cover the emulated kernel;
 physical protection remains a separate measurement.
 
-Build the diagnostic kernel and replay the fixture with the qualified artifacts:
+Build the three inputs from the checkout, then the diagnostic kernel, and
+replay the fixture:
 
 ```sh
 export PYTHON=${PYTHON:-python3}
-bmake MACHINE=rp2040 check-renode-xip-process \
-    XIP_SLOT_ELF="$slot_elf" XIP_PROVIDER="$provider_bin" \
-    XIP_FILESYSTEM="$partitioned_root" XIP_MODELS="$renode_rp2040"
+bmake MACHINE=rp2040 logged-build
+bmake MACHINE=rp2040 xip-gate-inputs
+bmake MACHINE=rp2040 check-renode-xip-process
 ```
+
+`tools/xip_gate_inputs.sh` captures a clean libc build, replays it as PIC,
+links the slot image and packs the provider; `relink_envelope.py` refuses an
+archive or package whose digest differs from `compact-provider.json`. The
+captured archive reproduces that record from main at `28cf3c58d` with GCC
+16.2.0 and binutils 2.47 once its members enter `libc.a` in byte order of
+their names; a locale-sorted glob reordered them. `XIP_SLOT_ELF`,
+`XIP_PROVIDER`, `XIP_FILESYSTEM` and `XIP_MODELS` name other files.
 
 The fixture copies the partitioned disk before adding its callers. Each run
 retains the test disk, packed Dhara image, monitor log and UART transcript

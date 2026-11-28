@@ -15,7 +15,7 @@ arm.a:		${ALL}
 		mkdir tmp
 		set -e; for i in ${ALL}; do (cd tmp; $(AR) x ../$$i/$$i.a); done
 		rm -f arm.a
-		$(AR) cr arm.a `ls tmp/*.o | sort`
+		$(AR) cr arm.a `ls tmp/*.o | LC_ALL=C sort`
 		rm -rf tmp
 
 ${ALL}:

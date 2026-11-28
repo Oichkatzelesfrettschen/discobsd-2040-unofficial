@@ -703,11 +703,11 @@ def plan_text(
     else:
         lines.append("  1. port %s already shows the boot ROM; no reset is issued" % dev.port)
     lines.append(
-        "  3. save 0x%08x to 0x%08x with picotool, then publish %s"
+        "  3. save range 0x%08x 0x%08x with picotool, then publish %s"
         % (SRAM_BASE, SRAM_END, os.path.join(out_dir, SRAM_FILE))
     )
     lines.append(
-        "  4. save 0x%08x to 0x%08x with picotool, then publish %s"
+        "  4. save range 0x%08x 0x%08x with picotool, then publish %s"
         % (FLASH_BASE, flash_end, os.path.join(out_dir, FLASH_FILE))
     )
     lines.append(

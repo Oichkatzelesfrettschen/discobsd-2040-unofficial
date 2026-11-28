@@ -2246,10 +2246,14 @@
         "risk_tier_basis": "caller-closure-required",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [],
+          "aliasing": [
+            "cast-dereference"
+          ],
           "inline_assembly": [],
           "integer": [
-            "shift-expression"
+            "integer-cast",
+            "shift-expression",
+            "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
           "pointer": [],
@@ -100290,6 +100294,7 @@
           ],
           "object_lifetime": [],
           "pointer": [
+            "integer-pointer-cast",
             "pointer-integer-cast"
           ],
           "prototype": [
@@ -114266,7 +114271,9 @@
         "risk_tier_basis": "caller-closure-required",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [],
+          "aliasing": [
+            "cast-dereference"
+          ],
           "inline_assembly": [],
           "integer": [
             "shift-expression"
@@ -114811,9 +114818,12 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "integer-cast"
+          ],
           "object_lifetime": [],
           "pointer": [
+            "integer-pointer-cast",
             "pointer-integer-cast"
           ],
           "prototype": [
@@ -115297,7 +115307,6 @@
           ],
           "object_lifetime": [],
           "pointer": [
-            "integer-pointer-cast",
             "pointer-integer-cast"
           ],
           "prototype": [

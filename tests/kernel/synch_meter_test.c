@@ -110,6 +110,54 @@ sleep_bound(void)
 	}
 }
 
+/* kern_synch.c's sleep queues; SLPQUE_BUCKETS is its SQSIZE. */
+extern struct proc *slpque[];
+#define SLPQUE_BUCKETS 16
+
+/* Put one process that is neither asleep nor stopped on every sleep queue. */
+static void
+queue_running_process(void)
+{
+	unsigned i;
+
+	reset();
+	proc[1].p_stat = SRUN;
+	proc[1].p_wchan = &channel;
+	for (i = 0; i < SLPQUE_BUCKETS; i++)
+		slpque[i] = &proc[1];
+}
+
+static void
+wake_channel(void)
+{
+	wakeup(&channel);
+}
+
+static void
+wakeup_after_panic(void)
+{
+	static char message[] = "first panic";
+	unsigned i;
+
+	/* Before a panic the inconsistent queue is fatal. */
+	queue_running_process();
+	HK_EXPECT_PANIC("K18", wake_channel);
+	/* The panic left wakeup() inside its splclock() section. */
+	hk_ipl = 0;
+
+	/* During one, wakeup() returns with the queue as it found it. */
+	queue_running_process();
+	panicstr = message;
+	wakeup(&channel);
+	panicstr = 0;
+	HK_CHECK(hk_ipl == 0);
+	HK_CHECK(proc[1].p_stat == SRUN && proc[1].p_wchan == &channel);
+	for (i = 0; i < SLPQUE_BUCKETS; i++) {
+		HK_CHECK(slpque[i] == &proc[1]);
+		slpque[i] = 0;
+	}
+}
+
 #define METER_CASES(APPLY) \
 	APPLY(v_swtch, 0, 0) \
 	APPLY(v_trap, 1, 0) \
@@ -159,7 +207,8 @@ int
 main(void)
 {
 	sleep_bound();
+	wakeup_after_panic();
 	meter_tick(1, 70000, 0);
 	meter_tick(5, 71000, 1);
-	return hk_verdict("tsleep/vmmeter");
+	return hk_verdict("tsleep/wakeup/vmmeter");
 }

@@ -47,8 +47,8 @@ MUTATIONS = {
     ),
     "omit-release-wakeup": (
         "    wakeup ((caddr_t) &runout);\n"
-        "    wakeup ((caddr_t) &runin);\n}\n\n/*\n * Swap a process in.",
-        "    (void)runout;\n    (void)runin;\n}\n\n/*\n * Swap a process in.",
+        "    wakeup ((caddr_t) &runin);\n}\n",
+        "    (void)runout;\n    (void)runin;\n}\n",
     ),
     "notify-before-release": (
         "swap_image_release (struct proc *p)\n{",

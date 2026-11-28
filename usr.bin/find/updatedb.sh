@@ -29,7 +29,8 @@ fi
 bigrams=$work/bigrams
 filelist=$work/list
 errs=$work/errors
-trap 'rm -f "$bigrams" "$filelist" "$errs"; rmdir "$work" 2>/dev/null || :' 0 1 2 3 15
+trap 'rm -f "$bigrams" "$filelist" "$errs"; rmdir "$work" 2>/dev/null || :' 0
+trap 'exit 1' 1 2 3 15
 
 # Make a file list and compute common bigrams.
 # Alphabetize '/' before any other char with 'tr'.
@@ -38,7 +39,6 @@ trap 'rm -f "$bigrams" "$filelist" "$errs"; rmdir "$work" 2>/dev/null || :' 0 1 
 # ('awk', with its associative memory capacity, can do this in several
 # lines, but is too slow, and runs out of string space on small machines).
 
-nice +10
 find ${SRCHPATHS} -print | tr '/' '\001' | \
    (set +e; sort -f; status=$?; echo "$status" > "$errs"; exit "$status") | \
    tr '\001' '/' > "$filelist"

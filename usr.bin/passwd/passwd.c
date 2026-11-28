@@ -32,8 +32,8 @@
 #include <unistd.h>
 #include <paths.h>
 
-static int copy(char *name, char *new_password, FILE *output,
-	    struct passwd *account);
+static int copy(const char *original, char *new_password, FILE *output,
+	    const struct passwd *account);
 static char *getnewpasswd(struct passwd *account, char *temporary_path);
 static int makedb(char *temporary_path);
 
@@ -54,9 +54,9 @@ main(int argc, char **argv)
 	struct passwd *pw;
 	struct rlimit rlim;
 	FILE *temp_fp;
-	int fd;
+	int fd, size, copied;
 	char *fend, *np, *passwd, *temp, *tend;
-	char from[MAXPATHLEN], to[MAXPATHLEN];
+	char from[MAXPATHLEN], to[MAXPATHLEN], original[256];
 
 	uid = getuid();
 	switch(--argc) {
@@ -92,6 +92,13 @@ main(int argc, char **argv)
 
 	(void)umask(0);
 
+	size = snprintf(original, sizeof(original), "%s:%s:%d:%d:%s:%s:%s\n",
+	    pw->pw_name, pw->pw_passwd, pw->pw_uid, pw->pw_gid,
+	    pw->pw_gecos, pw->pw_dir, pw->pw_shell);
+	if (size < 0 || (size_t)size >= sizeof(original)) {
+		fprintf(stderr, "passwd: account record too long.\n");
+		exit(1);
+	}
 	temp = _PATH_PTMP;
 	printf("Changing password for %s.\n", pw->pw_name);
 	np = getnewpasswd(pw, NULL);
@@ -102,10 +109,11 @@ main(int argc, char **argv)
 			    "passwd: password file busy -- try again later.\n");
 			exit(0);
 		}
-		fprintf(stderr, "passwd: %s: %s", temp, strerror(errno));
-		goto bad;
+		fprintf(stderr, "passwd: %s: %s; password unchanged.\n", temp, strerror(errno));
+		exit(1);
 	}
 	if (!(temp_fp = fdopen(fd, "w"))) {
+		(void)close(fd);
 		fprintf(stderr, "passwd: can't write %s\n", temp);
 		goto bad;
 	}
@@ -115,10 +123,14 @@ main(int argc, char **argv)
 		goto bad;
 	}
 
-	if (!copy(pw->pw_name, np, temp_fp, pw))
+	copied = copy(original, np, temp_fp, pw);
+	explicit_bzero(original, sizeof(original));
+	if (!copied)
 		goto bad;
-
-	(void)fclose(temp_fp);
+	if (fclose(temp_fp) == EOF) {
+		fprintf(stderr, "passwd: can't finish %s", temp);
+		goto bad;
+	}
 	(void)fclose(stdin);
 
 	switch(fork()) {
@@ -167,47 +179,35 @@ bad:		fprintf(stderr, "; password unchanged.\n");
 }
 
 static int
-copy(char *name, char *np, FILE *fp, struct passwd *pw)
+copy(const char *original, char *np, FILE *fp, const struct passwd *pw)
 {
-	int done;
-	char *p;
+	int done = 0;
+	size_t namelen = strlen(pw->pw_name);
 	char buf[256];
 
-	for (done = 0; fgets(buf, sizeof(buf), stdin);) {
-		/* skip lines that are too big */
-		if (!index(buf, '\n')) {
+	while (fgets(buf, sizeof(buf), stdin)) {
+		if (!strchr(buf, '\n')) {
 			fprintf(stderr, "passwd: line too long.\n");
-			return(0);
+			return 0;
 		}
-		if (done) {
-			fprintf(fp, "%s", buf);
+		if (strncmp(buf, pw->pw_name, namelen) != 0 || buf[namelen] != ':') {
+			if (fputs(buf, fp) == EOF)
+				return 0;
 			continue;
 		}
-		if (!(p = index(buf, ':'))) {
-			fprintf(stderr, "passwd: corrupted entry.\n");
-			return(0);
+		if (done || strcmp(buf, original) != 0) {
+			fprintf(stderr, "passwd: account changed during password entry");
+			return 0;
 		}
-		*p = '\0';
-		if (strcmp(buf, name)) {
-			*p = ':';
-			fprintf(fp, "%s", buf);
-			continue;
-		}
-		if (!(p = index(++p, ':'))) {
-			fprintf(stderr, "passwd: corrupted entry.\n");
-			return(0);
-		}
-		/*
-		 * reset change time to zero; when classes are implemented,
-		 * go and get the "offset" value for this class and reset
-		 * the timer.
-		 */
-		fprintf(fp, "%s:%s:%d:%d:%s:%s:%s\n",
+		if (fprintf(fp, "%s:%s:%d:%d:%s:%s:%s\n",
 		    pw->pw_name, np, pw->pw_uid, pw->pw_gid,
-		    pw->pw_gecos, pw->pw_dir, pw->pw_shell);
+		    pw->pw_gecos, pw->pw_dir, pw->pw_shell) < 0)
+			return 0;
 		done = 1;
 	}
-	return(1);
+	if (!done)
+		fprintf(stderr, "passwd: account disappeared during password entry");
+	return done && !ferror(stdin);
 }
 
 static char *

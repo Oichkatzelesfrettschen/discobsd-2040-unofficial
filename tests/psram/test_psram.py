@@ -834,6 +834,49 @@ def test_pad_delay(lib_path, c):
     )
 
 
+def test_probe_lines(lib, xfer_text):
+    """psramprobe() prints the lines psram_probe_lines() selects, in order.
+    Case 1: a Read ID that never completed prints no read-id line.
+    Case 2: a refused ID prints the read-id line, then the not-a-part line.
+    Case 3: an address wrap prints the wrap line.
+    Case 4: success prints the read-id line, then the swap line."""
+    import ctypes
+
+    fn = lib.psram_probe_lines
+    fn.restype = ctypes.c_uint
+    fn.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
+    ids = {
+        n: macro(xfer_text, "PSRAM_LINE_" + n)
+        for n in ("READ_ID", "NOT_PART", "WRAP", "UNUSABLE", "UP")
+    }
+    cap = macro(xfer_text, "PSRAM_LINES_MAX")
+
+    def call(id_read, err):
+        buf = ctypes.create_string_buffer(cap)
+        n = fn(id_read, err, buf)
+        return n, list(buf.raw[: min(n, cap)])
+
+    e = {
+        n: macro(xfer_text, "PSRAM_E_" + n)
+        for n in ("TIMEOUT", "STALL", "RANGE", "ID", "QUAD", "SIZE")
+    }
+    cases = [
+        ("case 1: no Read ID, timeout", 0, e["TIMEOUT"], ["UNUSABLE"]),
+        ("case 1: no Read ID, stall", 0, e["STALL"], ["UNUSABLE"]),
+        ("case 2: refused ID", 1, e["ID"], ["READ_ID", "NOT_PART"]),
+        ("case 3: address wrap", 1, e["SIZE"], ["READ_ID", "WRAP"]),
+        ("case 4: success", 1, 0, ["READ_ID", "UP"]),
+        ("ID read, quad test failed", 1, e["QUAD"], ["READ_ID", "UNUSABLE"]),
+        ("ID read, range error", 1, e["RANGE"], ["READ_ID", "UNUSABLE"]),
+    ]
+    for what, id_read, err, want in cases:
+        n, got = call(id_read, err)
+        check(
+            n == len(want) and got == [ids[w] for w in want],
+            "probe lines, %s: got %s, want %s" % (what, got, want),
+        )
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lib", required=True)
@@ -870,6 +913,7 @@ def main():
     test_faults(a.lib, c)
     test_eid(a.lib, c)
     test_extent(a.lib, c)
+    test_probe_lines(lib, open(a.xfer_header).read())
     test_cpu_speed(a.lib, c)
     test_pad_delay(a.lib, c)
     results["stage_gating"] = test_stage_gating(a.lib, c)

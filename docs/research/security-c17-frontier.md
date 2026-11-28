@@ -1337,7 +1337,7 @@ need an architecture decision, namespace serialization, or hardware authority.
 | `csf_fb9b61a9e9adb66d1fe12ea6` | fixed, host gate | SRAM capture creates outputs with exclusive, no-follow ownership and private modes. |
 | `csf_bd49e51d2002765b38d14972` | open, descriptor architecture | `/dev/tty` still resolves the caller's current controlling tty per operation; complete closure needs per-open binding or generation-aware file state. |
 | `csf_3e197cec4dab36caf5d1016e` | fixed, calibrated | Signal delivery admits the complete alternate-stack frame before writing it. |
-| `csf_4668fd506dc58ea3a82d4543` | fixed, source and target build | `chpass` closes privileged transaction descriptors across the caller-selected editor. |
+| `csf_4668fd506dc58ea3a82d4543` | fixed, source and target build | `chpass` opens the writer lock after editing and checks the saved shadow record under the lock before publication. Host fixtures refuse changed password and shell fields. |
 | `csf_283ed69258d5b4400bd797b9` | fixed, calibrated | `readlink(2)` admits the complete destination span before `uiomove()`. |
 | `csf_d983c4f7c75fc0a45403372a` | fixed, host gate | Capture files receive an explicit private mode independent of caller umask. |
 | `csf_22f4bf8c93d46d51f1b1448e` | fixed, target build | `rmail` bounds UUCP envelope tokens and accumulated sender paths. |

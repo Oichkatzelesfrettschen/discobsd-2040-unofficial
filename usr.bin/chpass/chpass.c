@@ -68,6 +68,26 @@ struct entry list[] = {
 
 uid_t uid;
 
+static int
+account_unchanged(FILE *fp, const char *original)
+{
+	char line[256];
+	size_t namelen = strcspn(original, ":");
+	int found = 0;
+
+	/* Compare the saved record with the shadow file under the writer lock. */
+	while (fgets(line, sizeof(line), fp)) {
+		if (!strchr(line, '\n'))
+			return 0;
+		if (strncmp(line, original, namelen) != 0 || line[namelen] != ':')
+			continue;
+		if (found || strcmp(line, original) != 0)
+			return 0;
+		found = 1;
+	}
+	return found && !ferror(fp) && fseek(fp, 0L, SEEK_SET) == 0;
+}
+
 int
 main(argc, argv)
 	int argc;
@@ -81,7 +101,7 @@ main(argc, argv)
 	FILE *temp_fp;
 	int aflag, ch, fd;
 	char *fend, *passwd, *temp, *tend;
-	char from[MAXPATHLEN], to[MAXPATHLEN];
+	char from[MAXPATHLEN], to[MAXPATHLEN], original[256];
 	char *getusershell();
 
 	uid = getuid();
@@ -141,8 +161,18 @@ main(argc, argv)
 	(void)umask(0);
 
 	temp = _PATH_PTMP;
-	if (!aflag && !info(pw))
-		exit(1);
+	if (!aflag) {
+		int n = snprintf(original, sizeof(original), "%s:%s:%d:%d:%s:%s:%s\n",
+		    pw->pw_name, pw->pw_passwd, pw->pw_uid, pw->pw_gid,
+		    pw->pw_gecos, pw->pw_dir, pw->pw_shell);
+
+		if (n < 0 || (size_t)n >= sizeof(original)) {
+			(void)fprintf(stderr, "chpass: account record too long.\n");
+			exit(1);
+		}
+		if (!info(pw))
+			exit(1);
+	}
 
 	/* root should have a 0 uid and a reasonable shell */
 	if (!strcmp(pw->pw_name, "root")) {
@@ -167,11 +197,12 @@ main(argc, argv)
 			    "chpass: password file busy -- try again later.\n");
 			exit(1);
 		}
-		(void)fprintf(stderr, "chpass: %s: %s; ",
-		    temp, strerror(errno));
-		goto bad;
+		(void)fprintf(stderr, "chpass: %s: %s; %s unchanged.\n",
+		    temp, strerror(errno), _PATH_SHADOW);
+		exit(1);
 	}
 	if (!(temp_fp = fdopen(fd, "w"))) {
+		(void)close(fd);
 		(void)fprintf(stderr, "chpass: can't write %s; ", temp);
 		goto bad;
 	}
@@ -181,10 +212,17 @@ main(argc, argv)
 		(void)fprintf(stderr, "chpass: can't read %s; ", passwd);
 		goto bad;
 	}
+	if (!aflag && !account_unchanged(stdin, original)) {
+		(void)fprintf(stderr, "chpass: account changed during edit; ");
+		goto bad;
+	}
 	if (!copy(pw, temp_fp))
 		goto bad;
 
-	(void)fclose(temp_fp);
+	if (fclose(temp_fp) == EOF) {
+		(void)fprintf(stderr, "chpass: can't finish %s; ", temp);
+		goto bad;
+	}
 	(void)fclose(stdin);
 
 	switch(fork()) {
@@ -239,11 +277,16 @@ info(pw)
 	struct stat begin, end;
 	FILE *fp;
 	int fd, rval;
-	char *tfile;
+	char tfile[] = "/tmp/passwd.XXXXXX";
 
-	tfile = "/tmp/passwd.XXXXXX";
-	if ((fd = mkstemp(tfile)) == -1 || !(fp = fdopen(fd, "w+"))) {
+	if ((fd = mkstemp(tfile)) == -1) {
 		(void)fprintf(stderr, "chpass: no temporary file");
+		return(0);
+	}
+	if (!(fp = fdopen(fd, "w+"))) {
+		(void)close(fd);
+		(void)unlink(tfile);
+		(void)fprintf(stderr, "chpass: no temporary stream");
 		return(0);
 	}
 
@@ -383,7 +426,7 @@ copy(pw, fp)
 		(void)fprintf(fp, "%s:%s:%d:%d:%s:%s:%s\n",
 		    pw->pw_name, pw->pw_passwd, pw->pw_uid, pw->pw_gid,
 		    pw->pw_gecos, pw->pw_dir, pw->pw_shell);
-	return(1);
+	return !ferror(stdin) && !ferror(fp);
 }
 
 int

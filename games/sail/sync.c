@@ -49,7 +49,7 @@ sync_record_valid(int type, int isstr, int a, int b, int c, int d)
 	case W_DIR:
 		return a >= 0 && a <= 8;
 	case W_WIND:
-		return a >= 0 && a <= 8 && b >= 0 && b <= 6;
+		return a >= 0 && a <= 8 && b >= 0 && b <= 7;
 	case W_GUNL:
 	case W_GUNR:
 		return a >= 0 && a <= 127 && b >= 0 && b <= 127;

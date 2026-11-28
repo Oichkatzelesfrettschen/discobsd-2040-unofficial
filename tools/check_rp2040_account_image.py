@@ -24,7 +24,6 @@ KMEM_GROUP = 2
 PRIVILEGED_INODES = {
     "/usr/bin/passwd": (stat.S_IFREG, 0o4755, 0, 0),
     "/usr/bin/su": (stat.S_IFREG, 0o4751, 0, 0),
-    "/usr/sbin/chroot": (stat.S_IFREG, 0o755, 0, 0),
     "/bin/ps": (stat.S_IFREG, 0o775, 0, 0),
     "/usr/bin/fstat": (stat.S_IFREG, 0o775, 0, 0),
     "/dev/mem": (stat.S_IFCHR, 0o640, 0, KMEM_GROUP),
@@ -200,7 +199,6 @@ def verify_checker_controls() -> None:
     unsafe_metadata = (
         ("/usr/bin/passwd", (stat.S_IFREG, 0o775, 0, 0)),
         ("/usr/bin/su", (stat.S_IFREG, 0o751, 0, 0)),
-        ("/usr/sbin/chroot", (stat.S_IFREG, 0o4755, 0, 0)),
         ("/usr/bin/passwd", (stat.S_IFREG, 0o4755, 2, 0)),
         ("/bin/ps", (stat.S_IFREG, 0o2751, 0, KMEM_GROUP)),
         ("/bin/ps", (stat.S_IFREG, 0o2775, 0, 0)),

@@ -1283,16 +1283,17 @@ shell object list omits. The compact and base manifests omit scrshot, csh,
 hunt, and the build-only mkdep and UnixBench scripts that retain predictable
 names. The libc still exports the inherently name-only `mktemp(3)`,
 `tmpnam(3)`, and `tempnam(3)` compatibility interfaces; the shipped-source
-search finds no production caller after these repairs.
+search identifies production callers of other interfaces only.
 
 The aggregate `logged-build` invocation
 `rp2040-build-local-20261126T213400Z-2001863-d55d9c61` stops after 13.8 seconds
 in generated `usr.bin/awk/lex.yy.c`: the host Flex output declares `fileno`
 where the target header supplies a macro. Every touched C program reaches a
 separate successful target link, so the unrelated AWK generator failure stays
-outside this patch. Direct QEMU execution of target `m4` reaches unmodeled
-GizmoBSD syscall 38 and supplies no runtime verdict. Physical-board execution
-was not run.
+outside that build's evidence. The scanner repair in PR #981 clears the
+generator failure. Direct QEMU execution of target `m4` stops at unmodeled
+GizmoBSD syscall 38, before establishing a runtime verdict. Physical-board
+execution was not run.
 
 ## Deep security scan disposition ledger
 
@@ -1358,13 +1359,13 @@ need an architecture decision, namespace serialization, or hardware authority.
 | `csf_23404f861f2f6e434dd90dd1` | open, fault architecture and hardware | `arm_fault()` can still print through an unreadable process-stack pointer; closure must also define a recoverable HardFault exit without writing the same frame. |
 | `csf_782b9c94b5208563178967ab` | fixed, calibrated | `PT_READ_U` exposes only the admitted public user context; 166 assertions and 17 mutations pass. |
 | `csf_6568dc2a9abbb86ae89333d1` | fixed, calibrated | PCM uses atomic bounded `tsleep()`; the restored split callout/sleep mutation exposes the lost wakeup and fails. |
-| `csf_9c2292adbce04166429cdc80` | open, hardware gate | The flash-semantics runner still lacks an exact one-run arming token, explicit board binding, and a proof that sector `0x1f000` is free. |
+| `csf_9c2292adbce04166429cdc80` | contained, hardware release open | The flash-semantics runner refuses board access. Reopening it requires an exact one-run arming token, explicit board binding, and proof that sector `0x1f000` is available. |
 
 The source, build, host-model, emulator, and board columns remain distinct.
 The repaired `rmail` and `uuxqt` paths pass Cortex-M0+ target builds; dedicated
-behavioral mutations remain open proof work. The physical board ran none of
-these checks. The aggregate `logged-build` remains blocked in generated AWK
-source by the pre-existing Flex `fileno` collision.
+behavioral mutations remain open proof work. The checks run on the host
+and in the cross toolchain. The combined branch passes `logged-build` with
+the Flex scanner repair.
 
 A clean snapshot of base commit
 `28cf3c58d55468d04a5d18e3952c665242fb2b9c` and the candidate used the same

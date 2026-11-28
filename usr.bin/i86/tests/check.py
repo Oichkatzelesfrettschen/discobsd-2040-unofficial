@@ -108,6 +108,9 @@ TAIL = [
     "DONE",
 ]
 
+# pit_view() letting a guest read see time past waiting interrupts.
+HOLD_BAD = ("pc.c", "\theld = ticks_due;\n", "\theld = 0;\n")
+
 MUTANTS = [
     # clock.c, each through tests/clocktest.c: a step back counted as a
     # second, a 5 s gap counted whole, a clock set back moving the tick
@@ -521,6 +524,10 @@ MUTANTS = [
         "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(0);",
         "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(ems_on ? 3 : 0);",
     ),
+    # A guest read of the 8254 seeing time past waiting interrupts: the
+    # interrupt count falls out of step with counter 2 on a host whose
+    # sleeps run long (test_oversleep, hold_agrees).
+    HOLD_BAD,
 ]
 
 
@@ -1352,7 +1359,12 @@ def host_clock_irqs(run, what, floor=HOST_CLOCK_IRQ_UNSTALLED, note=print):
     count at most 37h interrupts while counter 2 counts 65535 clocks. A
     host never counts more than the clocks allow, so a run of 34h to 37h
     passes alone, without a repeat, and a loaded host counts fewer: the best
-    of three runs must reach floor. A paced run passes HOST_CLOCK_IRQ_STALLED
+    of three runs must reach floor. A count above 37h passes only when it
+    agrees with counter 2's latched count (hold_agrees()): while interrupts
+    wait, a read of counter 2 sees the time of the oldest one not yet raised
+    (pc.c pit_view()), so on a host whose sleeps run long the window the
+    guest times is longer than 65535 clocks, as hosted macOS showed with 38h
+    over 67971 clocks. A paced run passes HOST_CLOCK_IRQ_STALLED
     as its floor. The -T run holds the exact count of 36h, which a lost
     final interrupt moves; this judge cannot see one inside its band."""
     seen = []
@@ -1360,12 +1372,9 @@ def host_clock_irqs(run, what, floor=HOST_CLOCK_IRQ_UNSTALLED, note=print):
         got = run()
         fields = dict(t.split(":", 1) for t in got if ":" in t)
         irq = int(fields.get("irq", "0"), 16)
-        if (
-            irq > HOST_CLOCK_IRQ_MAX
-            or fields.get("st2") != "00B0"
-            or fields.get("tick") != "ok"
-            or got[-1:] != ["done"]
-        ):
+        if fields.get("st2") != "00B0" or fields.get("tick") != "ok" or got[-1:] != ["done"]:
+            raise Failure("%s: %r" % (what, got))
+        if irq > HOST_CLOCK_IRQ_MAX and not ("c2" in fields and hold_agrees(got)[0]):
             raise Failure("%s: %r" % (what, got))
         if irq >= HOST_CLOCK_IRQ_UNSTALLED:
             return
@@ -1389,11 +1398,12 @@ def test_host_clock_judge():
     (38h), a run that does not finish and a run whose counter 2 status is
     wrong."""
 
-    def runs(counts, tail="done", st2="00B0"):
+    def runs(counts, tail="done", st2="00B0", c2=None):
         queue = list(counts)
 
         def one():
-            return ["irq:%04X" % queue.pop(0), "st2:" + st2, "tick:ok", tail]
+            span = [] if c2 is None else ["c2:%04X" % c2]
+            return ["irq:%04X" % queue.pop(0)] + span + ["st2:" + st2, "tick:ok", tail]
 
         return one
 
@@ -1418,6 +1428,23 @@ def test_host_clock_judge():
             host_clock_irqs(runs(counts), "judge", floor, note=lambda text: None)
         except Failure as failure:
             raise Failure("host clock judge rejected %r: %s" % (counts, failure)) from None
+    # 38h over 67971 clocks (c2 F67Ch, hosted macOS, -S 4.77) agrees with
+    # counter 2 and passes; 3Ah over the same span and 38h with counter 2 at
+    # FFFFh do not.
+    try:
+        host_clock_irqs(runs([0x38], c2=0xF67C), "judge", paced, note=lambda text: None)
+    except Failure as failure:
+        raise Failure("host clock judge rejected 38h over 67971 clocks: %s" % failure) from None
+    for count, c2 in ((0x3A, 0xF67C), (0x38, 0x0000)):
+        try:
+            host_clock_irqs(runs([count], c2=c2), "judge", paced, note=lambda text: None)
+        except Failure as failure:
+            if "irq:%04X" % count not in str(failure):
+                raise Failure(
+                    "host clock judge rejected %02Xh for another reason: %s" % (count, failure)
+                ) from None
+            continue
+        raise Failure("host clock judge accepted %02Xh with counter 2 at %04Xh" % (count, c2))
     for counts, floor, reason in rejected:
         kwargs = {}
         if reason == "done":
@@ -1445,6 +1472,73 @@ OVERSLEEP_BAD = (
     "unsigned cap = period ? (CLK_CREDIT_CLOCKS - 1) / period + 1 : 0;",
     "unsigned cap = period ? 0 : 0;",
 )
+
+
+# Counter 0's count in tests/pit.asm: 1 kHz.
+PIT_PERIOD = 0x04A9
+
+
+def hold_agrees(got):
+    """Whether one whole run of tests/pit.asm counted the interrupts counter
+    2's latched count allows. Counter 2 counts down from FFFFh in mode 0 and
+    on through 0, so its count c2, latched right after the guest saw it
+    expire, puts the window at span = 65535 + (-c2 mod 65536) clocks, and
+    counter 0 owes floor(span / PIT_PERIOD) interrupts or one more; 64 clocks
+    of slack cover the instructions before sti and after the close. While an
+    interrupt waits, a read of counter 2 sees the time of the oldest one not
+    yet raised (pc.c pit_view()), so the guest cannot see the window close
+    with interrupts still owed; without that hold the span runs ahead of the
+    count by the host's oversleep. Returns (agrees, a note)."""
+    fields = dict(t.split(":", 1) for t in got if ":" in t)
+    try:
+        irq = int(fields["irq"], 16)
+        c2 = int(fields["c2"], 16)
+    except (KeyError, ValueError):
+        raise Failure("hold: %r" % got) from None
+    if fields.get("st2") != "00B0" or fields.get("tick") != "ok" or got[-1:] != ["done"]:
+        raise Failure("hold: %r" % got)
+    span = 65535 + (-c2) % 65536
+    agrees = (span - 64) // PIT_PERIOD <= irq <= span // PIT_PERIOD + 1
+    return agrees, "%d over %d clocks" % (irq, span)
+
+
+def test_hold_judge():
+    """hold_agrees() on runs it must accept and reject. Measured runs: 55
+    interrupts over 66778 clocks and 57 over 69164 (the held timer at 15 and
+    8 ms of oversleep) agree; 52 over 76423 and 57 over 74998 (reads let
+    past waiting interrupts) do not. Bounds: over 66818 clocks, 56 periods
+    and 10 clocks, 55 to 57 agree and 54 and 58 do not; over 66908 clocks,
+    56 periods and 100, the 64 clocks of slack leave 56 as the least count.
+    A run that does not finish fails outright."""
+
+    def run(irq, span, tail="done"):
+        c2 = (65535 - span) % 65536
+        return ["irq:%04X" % irq, "c2:%04X" % c2, "st2:00B0", "tick:ok", tail]
+
+    cases = (
+        (55, 66778, True),
+        (57, 69164, True),
+        (52, 76423, False),
+        (57, 74998, False),
+        (54, 66818, False),
+        (55, 66818, True),
+        (57, 66818, True),
+        (58, 66818, False),
+        (55, 66908, False),
+        (56, 66908, True),
+    )
+    for irq, span, want in cases:
+        if hold_agrees(run(irq, span))[0] != want:
+            raise Failure("hold judge: %d over %d clocks judged %s" % (irq, span, not want))
+    try:
+        hold_agrees(run(55, 66778, tail="x"))
+    except Failure as failure:
+        if "'x'" not in str(failure):
+            raise Failure(
+                "hold judge failed an unfinished run for another reason: %s" % failure
+            ) from None
+        return
+    raise Failure("hold judge accepted a run that did not finish")
 
 
 def oversleep_build(src, work, cc, edits):
@@ -1484,7 +1578,8 @@ def test_oversleep(src, work, cc, calibrate=False):
     paced judge passes, since the interrupts that came due during a sleep
     wait and arrive late rather than being lost. With calibrate, the build
     that keeps four interrupts waiting (OVERSLEEP_BAD) must count under
-    HOST_CLOCK_IRQ_STALLED in at least three of five single runs."""
+    HOST_CLOCK_IRQ_STALLED in at least three of five single runs.
+    Return whether the hold check ran."""
 
     def paced(binary):
         return lambda: pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
@@ -1496,7 +1591,7 @@ def test_oversleep(src, work, cc, calibrate=False):
     overrun = host_sleep_overrun_ms()
     if overrun > 2:
         print("NOT RUN oversleep fixture: this host's 1 ms sleeps run %.1f ms long" % overrun)
-        return
+        return False
     good = oversleep_build(src, work, cc, [OVERSLEEP])
     try:
         host_clock_irqs(paced(good), "-S 4.77, sleeps 15 ms long", HOST_CLOCK_IRQ_STALLED)
@@ -1506,10 +1601,43 @@ def test_oversleep(src, work, cc, calibrate=False):
         overrun = host_sleep_overrun_ms()
         if overrun > 2:
             print("NOT RUN oversleep fixture: 1 ms sleeps now run %.1f ms long" % overrun)
-            return
+            return False
         raise
+    # The same build must keep its interrupt count in step with counter 2:
+    # two agreeing runs of four at most (20 of 20 single runs agree with the
+    # hold, 0 of 20 without it, at 3, 8 and 15 ms of oversleep).
+    notes = []
+    for _ in range(4):
+        try:
+            agrees, note = hold_agrees(paced(good)())
+        except Failure:
+            overrun = host_sleep_overrun_ms()
+            if overrun > 2:
+                print("NOT RUN hold check: 1 ms sleeps now run %.1f ms long" % overrun)
+                return False
+            raise
+        notes.append(("agrees: " if agrees else "disagrees: ") + note)
+        if sum(1 for n in notes if n.startswith("agrees")) == 2:
+            break
+    else:
+        overrun = host_sleep_overrun_ms()
+        if overrun > 2:
+            print("NOT RUN hold check: 1 ms sleeps now run %.1f ms long" % overrun)
+            return False
+        raise Failure(
+            "-S 4.77, sleeps 15 ms long: interrupts out of step with counter 2: %s"
+            % "; ".join(notes)
+        )
     if not calibrate:
-        return
+        return True
+    unheld = paced(oversleep_build(src, work, cc, [OVERSLEEP, HOLD_BAD]))
+    notes = [hold_agrees(unheld()) for _ in range(5)]
+    if sum(1 for agrees, _ in notes if agrees) > 1:
+        raise Failure(
+            "the hold check accepts reads past waiting interrupts: %s"
+            % "; ".join(note for _, note in notes)
+        )
+    print("hold check rejects reads past waiting interrupts: %s" % "; ".join(n for _, n in notes))
     bad = paced(oversleep_build(src, work, cc, [OVERSLEEP, OVERSLEEP_BAD]))
     counts = []
     for _ in range(5):
@@ -1532,6 +1660,7 @@ def test_oversleep(src, work, cc, calibrate=False):
         "oversleep check rejects the four-waiting build: %s"
         % ", ".join("%02Xh" % n for n in counts)
     )
+    return True
 
 
 def test_speed(binary, work):
@@ -2058,6 +2187,7 @@ def main(argv):
             # Independent of the emulator, so once, not for every mutant.
             test_wait_draining()
             test_host_clock_judge()
+            test_hold_judge()
             test(binary, work)
             test_oversleep(src, work, cc, calibrate=True)
             print("i86 host test passed")
@@ -2102,6 +2232,7 @@ def main(argv):
             print("i86 panel display test passed")
             if "--no-mutants" in argv:
                 return 0
+            rejected = 0
             for number, (name, old, new) in enumerate(MUTANTS, 1):
                 tree = os.path.join(work, "mutant")
                 shutil.rmtree(tree, ignore_errors=True)
@@ -2119,7 +2250,7 @@ def main(argv):
                     test_vectors(sstrun + "-mutant", src, work, suite="80286")
                     test_undefined(sstrun + "-mutant", work)
                     test_rep_burst(sstrun + "-mutant", work)
-                    test_oversleep(tree, work, cc)
+                    hold_ran = test_oversleep(tree, work, cc)
                 except (Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError):
                     # A mutant that hangs or dies has failed like any other. The
                     # line keeps the step's idle timer fed through the stage.
@@ -2127,9 +2258,13 @@ def main(argv):
                         "i86 mutant %d of %d rejected: %s" % (number, len(MUTANTS), name),
                         flush=True,
                     )
+                    rejected += 1
+                    continue
+                if (name, old, new) == HOLD_BAD and not hold_ran:
+                    print("NOT RUN i86 mutant %d: hold fixture unavailable" % number)
                     continue
                 raise Failure("mutant %d survives: %s: %r" % (number, name, old))
-            print("%d mutants fail the test" % len(MUTANTS))
+            print("%d mutants rejected, %d not run" % (rejected, len(MUTANTS) - rejected))
             for number, (name, old, new) in enumerate(panel.MUTANTS, 1):
                 tree = os.path.join(work, "mutant")
                 shutil.rmtree(tree, ignore_errors=True)

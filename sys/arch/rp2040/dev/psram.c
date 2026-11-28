@@ -186,6 +186,8 @@ psramprobe(const struct conf_device *config __unused)
 			    err);
 			break;
 		case PSRAM_LINE_UP:
+			psram_up = 1;
+			swapdev = makedev(PSRAM_MAJOR, 0);
 			printf("psram0: ESP-PSRAM64H %u kbytes on PIO0, swap %u kbytes, "
 			    "tmp %u kbytes\n", (unsigned int)(PSRAM_BYTES / 1024),
 			    (unsigned int)(PSRAM_SWAP_BYTES / 1024),
@@ -193,11 +195,7 @@ psramprobe(const struct conf_device *config __unused)
 			break;
 		}
 	}
-	if (err != 0)
-		return 0;
-	psram_up = 1;
-	swapdev = makedev(PSRAM_MAJOR, 0);
-	return 1;
+	return err == 0;
 }
 
 const struct driver psramdriver = {

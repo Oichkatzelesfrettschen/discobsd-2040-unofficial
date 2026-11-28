@@ -213,7 +213,11 @@ def ws_read(rf):
     if ln > MAX_CLIENT_FRAME:
         return None, None
     mask = rf.read(4) if masked else b"\x00\x00\x00\x00"
+    if len(mask) != 4:
+        return None, None
     data = rf.read(ln)
+    if len(data) != ln:
+        return None, None
     if masked:
         data = bytes(b ^ mask[i % 4] for i, b in enumerate(data))
     return op, data
@@ -243,18 +247,22 @@ class FrameReader:
         self.sock = sock
         self.buf = bytearray(pre)
         self.interval = interval
+        self.deadline: float | None = None
+
+    def read_frame(self):
+        self.deadline = time.monotonic() + self.interval if self.buf else None
+        return ws_read(self)
 
     def read(self, n: int) -> bytes:
-        deadline = time.monotonic() + self.interval if self.buf else None
         while len(self.buf) < n:
             wait = self.interval
-            if deadline is not None:
-                wait = deadline - time.monotonic()
+            if self.deadline is not None:
+                wait = self.deadline - time.monotonic()
                 if wait <= 0:
                     raise IncompleteFrame()
             ready, _, _ = select.select([self.sock], [], [], wait)
             if not ready:
-                if not self.buf:
+                if self.deadline is None:
                     raise Silence()
                 raise IncompleteFrame()
             try:
@@ -267,8 +275,8 @@ class FrameReader:
             if not d:
                 break
             self.buf += d
-            if deadline is None:
-                deadline = time.monotonic() + self.interval
+            if self.deadline is None:
+                self.deadline = time.monotonic() + self.interval
         out = bytes(self.buf[:n])
         del self.buf[:n]
         return out
@@ -302,7 +310,9 @@ def is_loopback(bind: str) -> bool:
 
 
 def authorized(token: str | None, presented: str | None) -> bool:
-    return bool(token) and presented is not None and hmac.compare_digest(presented, token)
+    return bool(token) and presented is not None and hmac.compare_digest(
+        presented.encode(), token.encode()
+    )
 
 
 def origin_ok(origin: str | None, host: str) -> bool:
@@ -436,7 +446,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             while alive[0]:
                 try:
-                    op, data = ws_read(frames)
+                    op, data = frames.read_frame()
                 except Silence:
                     if awaiting_pong:
                         break

@@ -3,6 +3,7 @@ import socket
 import threading
 import urllib.error
 import urllib.request
+from types import SimpleNamespace
 
 import pytest
 
@@ -46,6 +47,31 @@ def test_oversized_and_64bit_frames_are_refused_before_payload():
     assert web.ws_read(io.BytesIO(b"")) == (None, None)
 
 
+def test_truncated_mask_and_payload_are_refused():
+    frame = masked(b"input")
+    assert web.ws_read(io.BytesIO(frame[:4])) == (None, None)
+    assert web.ws_read(io.BytesIO(frame[:-1])) == (None, None)
+
+
+def test_frame_deadline_spans_mask_and_payload(monkeypatch):
+    frame = masked(b"input")
+    now = 0.0
+    parts = iter((frame[2:6], frame[6:]))
+    sock = SimpleNamespace(recv=lambda _: next(parts))
+
+    def ready(readers, _, __, timeout):
+        nonlocal now
+        now += min(0.6, timeout)
+        return (readers if timeout >= 0.6 else [], [], [])
+
+    monkeypatch.setattr(web, "time", SimpleNamespace(monotonic=lambda: now))
+    monkeypatch.setattr(web, "select", SimpleNamespace(select=ready))
+    reader = web.FrameReader(sock, frame[:2], 1.0)
+    with pytest.raises(web.IncompleteFrame):
+        reader.read_frame()
+    assert now == 1.0
+
+
 def test_close_opcode_is_reported():
     op, _ = web.ws_read(io.BytesIO(masked(b"", opcode=0x8)))
     assert op == 0x8
@@ -65,6 +91,7 @@ def test_authorization_rules():
     assert not web.authorized(None, None)
     assert web.authorized("s3cret", "s3cret")
     assert not web.authorized("s3cret", "wrong")
+    assert not web.authorized("s3cret", chr(0x2603))
     assert not web.authorized("s3cret", None)
 
 
@@ -118,11 +145,14 @@ def test_page_requires_token_on_loopback(server):
     base = "http://127.0.0.1:%d/" % httpd.server_address[1]
     with pytest.raises(urllib.error.HTTPError) as err:
         urllib.request.urlopen(base)
-    assert err.value.code == 401
-    page = urllib.request.urlopen(base + "?token=tok").read()
+    with err.value:
+        assert err.value.code == 401
+    with urllib.request.urlopen(base + "?token=tok") as response:
+        page = response.read()
     assert b"GizmoBSD console" in page and b"xterm" in page
     req = urllib.request.Request(base, headers={"Authorization": "Bearer tok"})
-    assert urllib.request.urlopen(req).status == 200
+    with urllib.request.urlopen(req) as response:
+        assert response.status == 200
 
 
 def test_page_has_no_raw_control_characters():

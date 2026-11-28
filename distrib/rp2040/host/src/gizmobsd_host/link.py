@@ -33,7 +33,9 @@ class RedirectHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         presented = (parse_qs(urlparse(self.path).query).get("token") or [None])[0]
-        if presented is None or not hmac.compare_digest(presented, self.server.token):
+        if presented is None or not hmac.compare_digest(
+            presented.encode(), self.server.token.encode()
+        ):
             self.send_response(401)
             self.send_header("Content-Length", "0")
             self.end_headers()

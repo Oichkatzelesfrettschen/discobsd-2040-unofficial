@@ -121,16 +121,19 @@ def test_link_redirects_to_the_console(redirect):
     opener = urllib.request.build_opener(NoRedirect)
     with pytest.raises(urllib.error.HTTPError) as err:
         opener.open("http://127.0.0.1:%d/anything?token=abc" % redirect.server_address[1])
-    assert err.value.code == 302
-    assert err.value.headers["Location"] == "http://10.0.0.5:7681/?token=abc"
-    assert err.value.headers["Cache-Control"] == "no-store"
+    with err.value:
+        assert err.value.code == 302
+        assert err.value.headers["Location"] == "http://10.0.0.5:7681/?token=abc"
+        assert err.value.headers["Cache-Control"] == "no-store"
 
 
-def test_link_refuses_to_disclose_the_target_without_its_token(redirect):
+@pytest.mark.parametrize("query", ["", "?token=%E2%98%83"])
+def test_link_refuses_to_disclose_the_target_without_its_token(redirect, query):
     with pytest.raises(urllib.error.HTTPError) as err:
-        urllib.request.urlopen("http://127.0.0.1:%d/" % redirect.server_address[1])
-    assert err.value.code == 401
-    assert "Location" not in err.value.headers
+        urllib.request.urlopen(f"http://127.0.0.1:{redirect.server_address[1]}/{query}")
+    with err.value:
+        assert err.value.code == 401
+        assert "Location" not in err.value.headers
 
 
 def test_link_requires_target(capsys):

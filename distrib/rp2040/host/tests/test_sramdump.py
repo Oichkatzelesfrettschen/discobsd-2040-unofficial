@@ -519,9 +519,9 @@ def scenario_capture_saves_both_regions(src: Path, tmp: Path) -> None:
     # The save calls carry the address the reset left, not the one before it.
     log = picotool_log(tmp)
     assert log[0] == "reboot -u -f --bus 1 --address 7 => 1-3"
-    assert re.match(r"save -r 0x20000000 0x20042000 /(proc/self|dev)/fd/", log[1])
+    assert re.match(r"save -r 0x20000000 0x20042000 .*/gizmobsd-sramdump-[^/]+/", log[1])
     assert log[1].endswith("/sram.bin --bus 1 --address 8 => 1-3")
-    assert re.match(r"save -r 0x10000000 0x10020000 /(proc/self|dev)/fd/", log[2])
+    assert re.match(r"save -r 0x10000000 0x10020000 .*/gizmobsd-sramdump-[^/]+/", log[2])
     assert log[2].endswith("/flash.bin --bus 1 --address 8 => 1-3")
     assert (out / "sram.bin").stat().st_size == 0x42000
     assert (out / "flash.bin").stat().st_size == 0x20000
